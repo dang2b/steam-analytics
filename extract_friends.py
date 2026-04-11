@@ -1,10 +1,12 @@
 import requests
-import os
-from dotenv import load_dotenv
+from config import STEAM_API_KEY, STEAM_USER_ID
 
-def get_friend_ids(steam_id):
-    payload = {'key': STEAM_API_KEY, 'steamid': '76561198314131071'}
+
+def get_friend_ids(steam_user_id=STEAM_USER_ID):
+    payload = {'key': STEAM_API_KEY, 'steamid': steam_user_id}
     r = requests.get('https://api.steampowered.com/ISteamUser/GetFriendList/v1/', params=payload)
+    print(r.status_code, r.text)
+    print(payload)
 
     friend_ids = []
     for friend in r.json()["friendslist"]["friends"]:
@@ -16,10 +18,3 @@ def get_friend_summaries(friend_ids):
 
     for player in r.json()["response"]["players"]:
         print(player["personaname"])
-
-if __name__ == "__main__":
-    load_dotenv()
-    STEAM_USER_ID = os.getenv('STEAM_USER_ID')
-    STEAM_API_KEY = os.getenv('STEAM_API_KEY')
-
-    get_friend_summaries(get_friend_ids(STEAM_USER_ID))
