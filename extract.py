@@ -16,5 +16,12 @@ def get_friend_ids(steam_user_id=STEAM_USER_ID):
 def get_friend_summaries(friend_ids):
     r = requests.get('https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/', params={'key': STEAM_API_KEY, 'steamids': ','.join(friend_ids)})
 
+    players = []
     for player in r.json()["response"]["players"]:
-        print(player["personaname"])
+        players.append((
+            player["steamid"],
+            player["personaname"], 
+            player["profileurl"],
+            player["personastate"],
+        ))
+    return players

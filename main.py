@@ -1,6 +1,9 @@
-import extract_friends
+import extract
+import load
 
 
 
 if __name__ == "__main__":
-    extract_friends.get_friend_summaries(extract_friends.get_friend_ids())
+    ids = extract.get_friend_ids()
+    players = extract.get_friend_summaries(ids)
+    load.load_friends(players)
