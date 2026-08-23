@@ -6,7 +6,7 @@ def get_friend_ids(steam_user_id=STEAM_USER_ID):
     payload = {'key': STEAM_API_KEY, 'steamid': steam_user_id}
     r = requests.get('https://api.steampowered.com/ISteamUser/GetFriendList/v1/', params=payload)
     print(r.status_code, r.text)
-    print(payload)
+    #print(payload)
 
     friend_ids = []
     for friend in r.json()["friendslist"]["friends"]:
