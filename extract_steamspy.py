@@ -1,4 +1,4 @@
-import requests
+from http_client import get_json
 
 STEAMSPY_BASE_URL = "https://steamspy.com/api.php"
 
@@ -8,9 +8,7 @@ def _to_int(value):
 
 
 def get_top100_2weeks():
-    r = requests.get(STEAMSPY_BASE_URL, params={"request": "top100in2weeks"})
-    r.raise_for_status()
-    return r.json()
+    return get_json(STEAMSPY_BASE_URL, params={"request": "top100in2weeks"})
 
 
 def parse_games(raw_games):
