@@ -1,0 +1,16 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw tables loaded by the Python ingestion pipeline (main.py).
+    schema: public
+    config:
+      loaded_at_field: loaded_at
+      freshness:
+        warn_after: {count: 1, period: day}
+        error_after: {count: 7, period: day}
+    tables:
+      - name: games
+        description: SteamSpy top 100 games by players in the last two weeks, one row per appid.
+      - name: friends
+        description: Steam Web API player summaries for the configured user's friends, one row per steamid.

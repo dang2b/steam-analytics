@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 .env
+steam_analytics/target/
+steam_analytics/logs/
+steam_analytics/dbt_packages/
