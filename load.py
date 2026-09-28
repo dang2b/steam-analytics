@@ -1,4 +1,5 @@
 import logging
+from contextlib import contextmanager
 
 import psycopg2
 
@@ -7,11 +8,23 @@ from config import DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER
 logger = logging.getLogger(__name__)
 
 
-def load_friends(players):
-    with psycopg2.connect(
+@contextmanager
+def connect():
+    # psycopg2's own `with conn:` only commits or rolls back the transaction;
+    # it leaves the connection open, so close it explicitly
+    conn = psycopg2.connect(
         host=DB_HOST, port=DB_PORT, dbname=DB_NAME,
         user=DB_USER, password=DB_PASSWORD,
-    ) as conn, conn.cursor() as cur:
+    )
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
+
+def load_friends(players):
+    with connect() as conn, conn.cursor() as cur:
         cur.executemany(
             """
             INSERT INTO friends (steamid, personaname, profileurl, personastate)
@@ -27,10 +40,7 @@ def load_friends(players):
 
 
 def load_games(games):
-    with psycopg2.connect(
-        host=DB_HOST, port=DB_PORT, dbname=DB_NAME,
-        user=DB_USER, password=DB_PASSWORD,
-    ) as conn, conn.cursor() as cur:
+    with connect() as conn, conn.cursor() as cur:
         cur.executemany(
             """
             INSERT INTO games (
