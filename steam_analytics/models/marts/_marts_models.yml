@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: game_rankings
+    description: One row per top-100 game with popularity, review and price metrics plus ranks. Built for Metabase.
+    columns:
+      - name: appid
+        description: Steam application ID. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: owners_estimate
+        description: Midpoint of the SteamSpy owners range. A rough estimate, not a count.
+      - name: is_discounted
+        description: True when the game currently has a discount.
+      - name: price_tier
+        description: Current price bucket.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['free', 'under $10', '$10 to $30', '$30 and up']
+      - name: ccu_rank
+        description: Rank by concurrent users, 1 = most played right now.
+        data_tests:
+          - not_null
+      - name: review_score_rank
+        description: Rank by positive review ratio, 1 = best reviewed.
+        data_tests:
+          - not_null
+
+  - name: publisher_summary
+    description: One row per publisher string, aggregating their games in the top 100.
+    columns:
+      - name: publisher
+        description: Publisher as reported by SteamSpy. Co-publishers stay in one comma-separated string.
+        data_tests:
+          - unique
+          - not_null
+      - name: game_count
+        description: Number of the publisher's games in the top 100.
+      - name: free_game_count
+        description: How many of those games are free to play.
+      - name: total_concurrent_users
+        description: Sum of concurrent users across the publisher's games.
+      - name: total_reviews
+        description: Sum of reviews across the publisher's games.
+      - name: positive_review_ratio
+        description: Positive reviews divided by all reviews across the publisher's games, weighted by review volume.
+      - name: top_game_by_ccu
+        description: The publisher's game with the most concurrent users.
+      - name: ccu_rank
+        description: Rank by total concurrent users.

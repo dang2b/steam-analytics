@@ -1,0 +1,64 @@
+version: 2
+
+models:
+  - name: stg_steamspy__games
+    description: One row per game from the SteamSpy top 100, with owners parsed into numeric bounds and prices in dollars.
+    columns:
+      - name: appid
+        description: Steam application ID. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: game_name
+        description: Game title.
+        data_tests:
+          - not_null
+      - name: owners_bucket
+        description: Raw owners range as reported by SteamSpy, kept for traceability.
+      - name: owners_min
+        description: Lower bound of the SteamSpy owners estimate.
+        data_tests:
+          - not_null
+      - name: owners_max
+        description: Upper bound of the SteamSpy owners estimate.
+        data_tests:
+          - not_null
+      - name: total_reviews
+        description: Positive plus negative reviews.
+      - name: positive_review_ratio
+        description: Share of reviews that are positive, 0 to 1. Null when the game has no reviews.
+      - name: price_usd
+        description: Current price in US dollars.
+      - name: initial_price_usd
+        description: Price before any discount, in US dollars.
+      - name: is_free
+        description: True when the current price is zero.
+      - name: concurrent_users
+        description: Peak concurrent users (CCU) yesterday, per SteamSpy.
+      - name: loaded_at
+        description: When the row was last written by the ingestion pipeline.
+
+  - name: stg_steam__friends
+    description: One row per friend of the configured Steam user.
+    columns:
+      - name: steam_id
+        description: 64-bit Steam ID. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: persona_name
+        description: Display name.
+      - name: persona_state_code
+        description: Raw online status code from the Steam Web API.
+      - name: persona_state
+        description: Readable online status label.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['offline', 'online', 'busy', 'away', 'snooze', 'looking to trade', 'looking to play']
+      - name: is_current_friend
+        description: True when the row came from the latest ingestion run, false for friends removed since.
+        data_tests:
+          - not_null
+      - name: loaded_at
+        description: When the row was last written by the ingestion pipeline.
