@@ -5,3 +5,5 @@ __pycache__/
 steam_analytics/target/
 steam_analytics/logs/
 steam_analytics/dbt_packages/
+.ruff_cache/
+.pytest_cache/

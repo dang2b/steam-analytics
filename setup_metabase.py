@@ -10,8 +10,12 @@ import time
 import requests
 
 from config import (
-    DB_NAME, DB_PASSWORD, DB_USER,
-    MB_ADMIN_EMAIL, MB_ADMIN_PASSWORD, MB_URL,
+    DB_NAME,
+    DB_PASSWORD,
+    DB_USER,
+    MB_ADMIN_EMAIL,
+    MB_ADMIN_PASSWORD,
+    MB_URL,
 )
 
 logger = logging.getLogger("setup_metabase")
@@ -56,7 +60,10 @@ CARDS = [
     (
         "Games on discount",
         "scalar",
-        "select count(*) filter (where is_discounted) as discounted from public_marts.game_rankings",
+        """
+        select count(*) filter (where is_discounted) as discounted
+        from public_marts.game_rankings
+        """,
         {},
         (16, 0, 8, 3),
     ),
@@ -169,7 +176,9 @@ class Metabase:
                 "prefs": {"site_name": "Steam Analytics", "allow_tracking": False},
             })
         else:
-            session = self.request("POST", "session", json={"username": email, "password": password})
+            session = self.request(
+                "POST", "session", json={"username": email, "password": password}
+            )
         self.session.headers["X-Metabase-Session"] = session["id"]
 
     def get_or_create_database(self):
@@ -225,14 +234,21 @@ class Metabase:
         dashboard = self.request("POST", "dashboard", json={
             "name": DASHBOARD_NAME,
             "collection_id": collection_id,
-            "description": "Popularity, reviews and pricing across SteamSpy's top 100 games of the last two weeks.",
+            "description": (
+                "Popularity, reviews and pricing across SteamSpy's top 100 games "
+                "of the last two weeks."
+            ),
         })
         dashcards = [
             # negative ids tell Metabase these are new dashcards
             {"id": -i, "card_id": card_id, "col": col, "row": row, "size_x": w, "size_y": h}
             for i, (card_id, (col, row, w, h)) in enumerate(placements, start=1)
         ]
-        self.request("PUT", f"dashboard/{dashboard['id']}", json={"dashcards": dashcards, "width": "full"})
+        self.request(
+            "PUT",
+            f"dashboard/{dashboard['id']}",
+            json={"dashcards": dashcards, "width": "full"},
+        )
         return dashboard["id"]
 
 

@@ -20,8 +20,16 @@ def get_friend_ids(steam_user_id=STEAM_USER_ID):
 
 
 def get_friend_summaries(friend_ids):
-    data = get_json(PLAYER_SUMMARIES_URL, params={'key': STEAM_API_KEY, 'steamids': ','.join(friend_ids)})
+    data = get_json(
+        PLAYER_SUMMARIES_URL,
+        params={'key': STEAM_API_KEY, 'steamids': ','.join(friend_ids)},
+    )
+    players = parse_player_summaries(data)
+    logger.info("fetched %d player summaries", len(players))
+    return players
 
+
+def parse_player_summaries(data):
     players = []
     for player in data["response"]["players"]:
         players.append((
@@ -30,5 +38,4 @@ def get_friend_summaries(friend_ids):
             player["profileurl"],
             player["personastate"],
         ))
-    logger.info("fetched %d player summaries", len(players))
     return players
