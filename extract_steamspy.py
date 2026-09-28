@@ -1,6 +1,10 @@
+import logging
+
 from http_client import get_json
 
 STEAMSPY_BASE_URL = "https://steamspy.com/api.php"
+
+logger = logging.getLogger(__name__)
 
 
 def _to_int(value):
@@ -8,7 +12,9 @@ def _to_int(value):
 
 
 def get_top100_2weeks():
-    return get_json(STEAMSPY_BASE_URL, params={"request": "top100in2weeks"})
+    raw_games = get_json(STEAMSPY_BASE_URL, params={"request": "top100in2weeks"})
+    logger.info("fetched %d games from steamspy top100in2weeks", len(raw_games))
+    return raw_games
 
 
 def parse_games(raw_games):

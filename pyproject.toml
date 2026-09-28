@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["steam_analytics"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, import sorting, bugbear, simplify
+select = ["E", "F", "I", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

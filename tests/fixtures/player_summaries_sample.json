@@ -1,0 +1,30 @@
+{
+  "response": {
+    "players": [
+      {
+        "steamid": "76561190000000001",
+        "communityvisibilitystate": 3,
+        "profilestate": 1,
+        "personaname": "test_player_one",
+        "profileurl": "https://steamcommunity.com/profiles/76561190000000001/",
+        "personastate": 0
+      },
+      {
+        "steamid": "76561190000000002",
+        "communityvisibilitystate": 3,
+        "profilestate": 1,
+        "personaname": "test_player_two",
+        "profileurl": "https://steamcommunity.com/profiles/76561190000000002/",
+        "personastate": 1
+      },
+      {
+        "steamid": "76561190000000003",
+        "communityvisibilitystate": 3,
+        "profilestate": 1,
+        "personaname": "test_player_three",
+        "profileurl": "https://steamcommunity.com/profiles/76561190000000003/",
+        "personastate": 3
+      }
+    ]
+  }
+}
