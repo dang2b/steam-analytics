@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # PRs cover dev, so pushing to an open PR runs CI once, not twice
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
 
 jobs:
