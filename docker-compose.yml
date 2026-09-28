@@ -12,5 +12,18 @@ services:
       # runs once, only when the data volume is empty
       - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
 
+  metabase:
+    image: metabase/metabase:v0.63.18.2
+    environment:
+      # Metabase's own settings, users and dashboards live in this H2 file
+      MB_DB_FILE: /metabase-data/metabase.db
+    ports:
+      - "3000:3000"
+    volumes:
+      - mbdata:/metabase-data
+    depends_on:
+      - db
+
 volumes:
   pgdata:
+  mbdata:
