@@ -35,6 +35,7 @@ enriched as (
         loaded_at
 
     from games
+    where is_in_latest_top100
 
 ),
 
