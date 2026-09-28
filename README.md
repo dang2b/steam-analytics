@@ -51,6 +51,21 @@ python setup_metabase.py        # build the dashboard
 
 Then open http://localhost:3000 and log in with the `MB_ADMIN_*` credentials from `.env`. The dashboard is in the **Steam Analytics** collection.
 
+### Daily schedule (Linux)
+
+```bash
+scripts/install_schedule.sh
+```
+
+This installs a systemd user timer that runs [`scripts/run_pipeline.sh`](scripts/run_pipeline.sh) every day at 09:00. That script starts Postgres if it's down, loads fresh data and runs `dbt build`. If the machine was off at 09:00, the run happens at the next boot. Useful commands:
+
+```bash
+systemctl --user list-timers steam-pipeline.timer    # next scheduled run
+journalctl --user -u steam-pipeline.service          # logs from past runs
+systemctl --user start steam-pipeline.service        # run now
+systemctl --user disable --now steam-pipeline.timer  # uninstall
+```
+
 ## Data model
 
 ```mermaid
@@ -91,7 +106,7 @@ Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse co
 
 ## Limitations and next steps
 
-- **No history yet.** Each run overwrites the previous one, so there are no trends over time. Next: schedule daily runs and add dbt snapshots.
+- **No history yet.** Runs are scheduled daily, but each one overwrites the previous data, so there are no trends over time. Next: dbt snapshots to keep a daily record.
 - **SteamSpy numbers are estimates.** Owners are ranges, not counts, and playtime isn't available.
 - **Friends data isn't used in the dashboard yet.** It's ingested and staged, ready for a future mart.
 - **Local-only setup.** Metabase stores its settings in an embedded H2 database, which is fine locally but should be Postgres in production. Orchestration (Airflow) and a cloud warehouse are out of scope for v1.
@@ -108,6 +123,7 @@ Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse co
 ├── config.py                # settings from .env
 ├── schema.sql               # raw tables, applied automatically on first start
 ├── setup_metabase.py        # dashboard as code
+├── scripts/                 # daily job + systemd timer installer
 ├── steam_analytics/         # dbt project: sources, staging, marts, tests
 ├── tests/                   # pytest unit tests + API fixtures
 ├── docker-compose.yml       # Postgres + Metabase
