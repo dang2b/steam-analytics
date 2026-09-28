@@ -1,5 +1,11 @@
+import logging
+
 import psycopg2
+
 from config import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+
+logger = logging.getLogger(__name__)
+
 
 def load_friends(players):
     with psycopg2.connect(
@@ -19,6 +25,7 @@ personaname, profileurl, personastate)
                 """,
                 players,
             )
+    logger.info("upserted %d rows into friends", len(players))
 
 
 def load_games(games):
@@ -57,3 +64,4 @@ def load_games(games):
                 """,
                 games,
             )
+    logger.info("upserted %d rows into games", len(games))
