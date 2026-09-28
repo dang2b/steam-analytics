@@ -26,6 +26,7 @@ aggregated as (
         (array_agg(game_name order by concurrent_users desc))[1] as top_game_by_ccu
 
     from games
+    where is_in_latest_top100
     group by publisher
 
 )

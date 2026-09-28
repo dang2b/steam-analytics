@@ -35,8 +35,23 @@ models:
         description: True when the current price is zero.
       - name: concurrent_users
         description: Peak concurrent users (CCU) yesterday, per SteamSpy.
+      - name: is_in_latest_top100
+        description: True when the game was in the most recent load. Games that dropped out stay in raw with an older loaded_at.
+        data_tests:
+          - not_null
       - name: loaded_at
         description: When the row was last written by the ingestion pipeline.
+
+  - name: stg_steamspy__games_history
+    description: One row per game per load, from the games snapshot.
+    columns:
+      - name: appid
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Day the version was loaded.
+        data_tests:
+          - not_null
 
   - name: stg_steam__friends
     description: One row per friend of the configured Steam user.

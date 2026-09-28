@@ -51,30 +51,50 @@ python setup_metabase.py        # build the dashboard
 
 Then open http://localhost:3000 and log in with the `MB_ADMIN_*` credentials from `.env`. The dashboard is in the **Steam Analytics** collection.
 
+### Daily schedule (Linux)
+
+```bash
+scripts/install_schedule.sh
+```
+
+This installs a systemd user timer that runs [`scripts/run_pipeline.sh`](scripts/run_pipeline.sh) every day at 09:00. That script starts Postgres if it's down, loads fresh data and runs `dbt build`. If the machine was off at 09:00, the run happens at the next boot. Useful commands:
+
+```bash
+systemctl --user list-timers steam-pipeline.timer    # next scheduled run
+journalctl --user -u steam-pipeline.service          # logs from past runs
+systemctl --user start steam-pipeline.service        # run now
+systemctl --user disable --now steam-pipeline.timer  # uninstall
+```
+
 ## Data model
 
 ```mermaid
 flowchart LR
     g[(raw.games)] --> sg[stg_steamspy__games]
+    g --> snap[[games_snapshot]]
+    snap --> sh[stg_steamspy__games_history]
     f[(raw.friends)] --> sf[stg_steam__friends]
     sg --> gr[game_rankings]
     sg --> ps[publisher_summary]
+    sh --> ds[game_daily_stats]
 ```
 
 | Layer | Schema | Materialization | Purpose |
 |---|---|---|---|
 | Raw | `public` | tables | API data as it arrived, one row per game or friend |
+| Snapshots | `public_snapshots` | dbt snapshot | Every version of every raw game row, one per daily load |
 | Staging | `public_staging` | views | Renames, type casts, parsing (owners buckets into numbers, cents into dollars) |
 | Marts | `public_marts` | tables | Business-facing tables the dashboard reads: rankings, price tiers, publisher totals |
 
 - **`game_rankings`**: one row per game, with concurrent-player and review-score ranks, price tier, discount flag and an owners estimate.
 - **`publisher_summary`**: one row per publisher, with game count, total concurrent players and a review ratio weighted by review volume.
+- **`game_daily_stats`**: one row per game per day it was in the top 100, for trend charts.
 
 Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse column descriptions and the full lineage graph.
 
 ## Data quality
 
-- **dbt tests** on every model: primary keys are `unique` and `not_null`, labels use `accepted_values`, and a custom test checks that every parsed owners range has its minimum below its maximum.
+- **dbt tests** on every model: primary keys are `unique` and `not_null`, labels use `accepted_values`, and custom tests check that parsed owners ranges are valid, that `game_rankings` never exceeds 100 games and that `game_daily_stats` has one row per game per day.
 - **Source freshness**: `dbt source freshness` warns after 1 day and errors after 7 without a new load.
 - **Unit tests** (pytest) for API parsing, retry configuration and connection handling, using recorded API fixtures.
 - **CI** (GitHub Actions) on every pull request: ruff lint, the unit tests, then a full `dbt build` against a fresh Postgres service loaded with the fixtures. CI never calls the live APIs, so it needs no secrets and can't fail because an external API is down.
@@ -84,14 +104,15 @@ Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse co
 - **Raw data stays raw.** SteamSpy reports owners as a text range (`"20,000,000 .. 50,000,000"`). Ingestion stores it untouched, and dbt staging parses it into `owners_min` and `owners_max`. If the parsing is ever wrong, it's fixed in SQL and rebuilt, without re-fetching anything.
 - **Top 100, not the full catalogue.** SteamSpy's `all` endpoint is paginated and rate-limited to one page a minute. The top 100 of the last two weeks keeps runs fast while the rest of the stack was built. Full-catalogue ingestion is a planned extension.
 - **Missing data is null, not zero.** SteamSpy currently returns `0` for every playtime field, even for games with a million concurrent players. Staging turns those zeros into `NULL`, and the marts leave out playtime metrics rather than rank games on fake data.
-- **Upserts never delete.** Loads use `INSERT ... ON CONFLICT DO UPDATE`, so re-running is safe. The downside is that friends removed since the last run stay in the table. Every upsert refreshes `loaded_at`, and staging flags rows missing from the latest load with `is_current_friend`.
+- **Upserts never delete.** Loads use `INSERT ... ON CONFLICT DO UPDATE`, so re-running is safe. The downside is that games that dropped out of the top 100, and friends removed since the last run, stay in the raw tables. Every upsert refreshes `loaded_at`, so staging flags rows missing from the latest load (`is_in_latest_top100`, `is_current_friend`), and the marts only use current rows. A dbt test fails if `game_rankings` ever holds more than 100 games.
+- **History from a snapshot of the raw source.** The APIs only return today's numbers, so history has to be captured as it happens. A dbt snapshot of `raw.games` keeps every version of each game. It snapshots the raw table rather than a model, so the history survives changes to the staging logic, and unlike an incremental model, `dbt build --full-refresh` can't wipe it.
 - **Publishers are grouped as-is.** SteamSpy puts co-publishers in one comma-separated string, but names like `CAPCOM Co., Ltd.` contain commas too. Splitting on commas would break those names, so `publisher_summary` groups by the full string.
 - **Dashboards as code.** Metabase normally keeps dashboards only in its internal database. `setup_metabase.py` rebuilds the connection, cards and dashboard through the API, so they're version-controlled and reproducible. Metabase only sees the `public_marts` schema, so every chart is built on tested, modeled data.
 - **Explicit connection handling.** psycopg2's `with conn:` commits or rolls back but doesn't close the connection. `load.connect()` closes it explicitly, so a long-running scheduler wouldn't leak connections.
 
 ## Limitations and next steps
 
-- **No history yet.** Each run overwrites the previous one, so there are no trends over time. Next: schedule daily runs and add dbt snapshots.
+- **History starts on the first snapshot run.** The APIs don't serve past data, so trends only cover days the pipeline actually ran. Days the machine was off completely are gaps.
 - **SteamSpy numbers are estimates.** Owners are ranges, not counts, and playtime isn't available.
 - **Friends data isn't used in the dashboard yet.** It's ingested and staged, ready for a future mart.
 - **Local-only setup.** Metabase stores its settings in an embedded H2 database, which is fine locally but should be Postgres in production. Orchestration (Airflow) and a cloud warehouse are out of scope for v1.
@@ -108,7 +129,8 @@ Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse co
 ├── config.py                # settings from .env
 ├── schema.sql               # raw tables, applied automatically on first start
 ├── setup_metabase.py        # dashboard as code
-├── steam_analytics/         # dbt project: sources, staging, marts, tests
+├── scripts/                 # daily job + systemd timer installer
+├── steam_analytics/         # dbt project: sources, snapshots, staging, marts, tests
 ├── tests/                   # pytest unit tests + API fixtures
 ├── docker-compose.yml       # Postgres + Metabase
 └── .github/workflows/ci.yml

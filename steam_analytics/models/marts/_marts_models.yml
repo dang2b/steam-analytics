@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: game_rankings
-    description: One row per top-100 game with popularity, review and price metrics plus ranks. Built for Metabase.
+    description: One row per game in the latest top 100, with popularity, review and price metrics plus ranks. Built for Metabase.
     columns:
       - name: appid
         description: Steam application ID. Primary key.
@@ -29,7 +29,7 @@ models:
           - not_null
 
   - name: publisher_summary
-    description: One row per publisher string, aggregating their games in the top 100.
+    description: One row per publisher string, aggregating their games in the latest top 100.
     columns:
       - name: publisher
         description: Publisher as reported by SteamSpy. Co-publishers stay in one comma-separated string.
@@ -50,3 +50,16 @@ models:
         description: The publisher's game with the most concurrent users.
       - name: ccu_rank
         description: Rank by total concurrent users.
+
+  - name: game_daily_stats
+    description: One row per game per day it was in the top 100, for trend charts. History starts on the first snapshot run.
+    columns:
+      - name: appid
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Day of the load. If the pipeline ran more than once that day, the last load wins.
+        data_tests:
+          - not_null
+      - name: concurrent_users
+        description: Peak concurrent users (CCU) the day before, per SteamSpy.

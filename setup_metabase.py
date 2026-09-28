@@ -135,6 +135,22 @@ CARDS = [
         {},
         (0, 18, 24, 8),
     ),
+    (
+        "Concurrent players over time: today's top 5",
+        "line",
+        """
+        select d.snapshot_date, d.game_name, d.concurrent_users
+        from public_marts.game_daily_stats as d
+        join public_marts.game_rankings as r on r.appid = d.appid
+        where r.ccu_rank <= 5
+        order by d.snapshot_date
+        """,
+        {
+            "graph.dimensions": ["snapshot_date", "game_name"],
+            "graph.metrics": ["concurrent_users"],
+        },
+        (0, 26, 24, 8),
+    ),
 ]
 
 
