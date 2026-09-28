@@ -1,0 +1,13 @@
+snapshots:
+  - name: games_snapshot
+    description: >
+      History of raw.games. Every load refreshes loaded_at, so each daily run
+      closes the previous version of each game and adds a new one. Snapshotting
+      the raw source (not a model) means the history survives changes to the
+      staging logic, and `dbt build --full-refresh` can't wipe it.
+    relation: source('raw', 'games')
+    config:
+      schema: snapshots
+      unique_key: appid
+      strategy: timestamp
+      updated_at: loaded_at
