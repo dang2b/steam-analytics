@@ -24,6 +24,10 @@ renamed as (
             else 'unknown'
         end as persona_state,
 
+        -- the loader upserts but never deletes, so friends removed since
+        -- the last run keep an older loaded_at than everyone else
+        loaded_at = max(loaded_at) over () as is_current_friend,
+
         loaded_at
 
     from source

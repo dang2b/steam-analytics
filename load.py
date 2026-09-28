@@ -14,7 +14,8 @@ personaname, profileurl, personastate)
                 VALUES (%s, %s, %s, %s)
                 ON CONFLICT (steamid) DO UPDATE SET
                     personaname  = EXCLUDED.personaname,
-                    personastate = EXCLUDED.personastate;
+                    personastate = EXCLUDED.personastate,
+                    loaded_at    = now();
                 """,
                 players,
             )

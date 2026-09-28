@@ -56,5 +56,9 @@ models:
           - accepted_values:
               arguments:
                 values: ['offline', 'online', 'busy', 'away', 'snooze', 'looking to trade', 'looking to play']
+      - name: is_current_friend
+        description: True when the row came from the latest ingestion run, false for friends removed since.
+        data_tests:
+          - not_null
       - name: loaded_at
-        description: When the row was first written by the ingestion pipeline.
+        description: When the row was last written by the ingestion pipeline.

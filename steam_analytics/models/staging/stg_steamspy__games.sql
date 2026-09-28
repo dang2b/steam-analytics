@@ -26,11 +26,12 @@ renamed as (
             4
         ) as positive_review_ratio,
 
-        -- SteamSpy reports playtime in minutes
-        average_playtime_forever as avg_playtime_forever_minutes,
-        average_playtime_2weeks as avg_playtime_2weeks_minutes,
-        median_playtime_forever as median_playtime_forever_minutes,
-        median_playtime_2weeks as median_playtime_2weeks_minutes,
+        -- SteamSpy reports playtime in minutes, but currently returns 0 for
+        -- every game (it no longer collects playtime), so 0 means unknown
+        nullif(average_playtime_forever, 0) as avg_playtime_forever_minutes,
+        nullif(average_playtime_2weeks, 0) as avg_playtime_2weeks_minutes,
+        nullif(median_playtime_forever, 0) as median_playtime_forever_minutes,
+        nullif(median_playtime_2weeks, 0) as median_playtime_2weeks_minutes,
 
         (price_cents / 100.0)::numeric(10, 2) as price_usd,
         (initial_price_cents / 100.0)::numeric(10, 2) as initial_price_usd,
