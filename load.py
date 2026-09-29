@@ -115,8 +115,9 @@ def load_catalog_page(run_id, page, games):
     logger.info("upserted %d rows into games_catalog (run %d, page %d)", len(games), run_id, page)
 
 
-def finish_catalog_run(run_id):
+def finish_catalog_run(run_id, list_size):
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
-            "UPDATE catalog_runs SET finished_at = now() WHERE run_id = %s;", (run_id,)
+            "UPDATE catalog_runs SET finished_at = now(), list_size = %s WHERE run_id = %s;",
+            (list_size, run_id),
         )

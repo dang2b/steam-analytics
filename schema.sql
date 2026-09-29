@@ -58,3 +58,9 @@ CREATE TABLE IF NOT EXISTS catalog_runs (
     last_page     INTEGER,
     games_loaded  INTEGER NOT NULL DEFAULT 0
 );
+
+-- list_size is how many entries SteamSpy's list had (full pages times 1,000
+-- plus the last page). Games move between pages during a run, so some are
+-- seen twice and others missed: distinct games / list_size is the coverage.
+-- ALTER, so databases created before this column can reapply this file
+ALTER TABLE catalog_runs ADD COLUMN IF NOT EXISTS list_size INTEGER;

@@ -25,7 +25,7 @@ def main():
     # treats them as the current catalogue
     run_id, _, _ = load.start_or_resume_catalog_run()
     load.load_catalog_page(run_id, 0, parse_games(games))
-    load.finish_catalog_run(run_id)
+    load.finish_catalog_run(run_id, list_size=len(games))
 
 
 if __name__ == "__main__":

@@ -108,9 +108,9 @@ def test_run_that_failed_on_first_page_resumes_at_zero(fake_conn):
     assert load.start_or_resume_catalog_run() == (5, 0, True)
 
 
-def test_finish_marks_run_finished(fake_conn):
-    load.finish_catalog_run(5)
+def test_finish_marks_run_finished_with_list_size(fake_conn):
+    load.finish_catalog_run(5, list_size=86544)
 
     _, sql, params = fake_conn.events[0]
-    assert sql.startswith("UPDATE catalog_runs SET finished_at = now()")
-    assert params == (5,)
+    assert sql.startswith("UPDATE catalog_runs SET finished_at = now(), list_size = %s")
+    assert params == (86544, 5)
