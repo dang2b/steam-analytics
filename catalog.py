@@ -1,7 +1,9 @@
 """Load the full SteamSpy catalogue into games_catalog, one page at a time.
 
 Takes over an hour: SteamSpy allows one catalogue page a minute. Runs
-separately from main.py so the daily top 100 load stays fast.
+separately from main.py so the daily top 100 load stays fast. Progress is
+checkpointed per page in catalog_runs, so rerunning after a failure
+continues from the next page instead of starting over.
 """
 import logging
 import sys
@@ -13,13 +15,24 @@ import load
 logger = logging.getLogger("catalog")
 
 
-def run(start_page=0):
+def run():
+    run_id, start_page, resumed = load.start_or_resume_catalog_run()
+    if resumed:
+        logger.info("resuming catalogue run %d from page %d", run_id, start_page)
+    else:
+        logger.info("starting catalogue run %d", run_id)
+
     total = 0
-    for page, raw_games in extract_steamspy.get_catalog_pages(start_page=start_page):
+    # a resumed run waits first: the request that crashed the last attempt
+    # still counts towards SteamSpy's one-a-minute limit
+    pages = extract_steamspy.get_catalog_pages(start_page=start_page, wait_first=resumed)
+    for page, raw_games in pages:
         games = extract_steamspy.parse_games(raw_games)
-        load.load_catalog_page(games)
+        load.load_catalog_page(run_id, page, games)
         total += len(games)
-        logger.info("page %d loaded, %d games so far", page, total)
+        logger.info("page %d loaded, %d games so far this attempt", page, total)
+
+    load.finish_catalog_run(run_id)
     return total
 
 

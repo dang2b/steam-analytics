@@ -150,6 +150,12 @@ def test_catalog_skips_wait_when_caller_is_slower_than_interval(clock, fake_cata
     assert clock.sleeps == []
 
 
+def test_catalog_can_wait_before_first_request(clock, fake_catalog):
+    list(pages(clock, interval=60, wait_first=True))
+
+    assert clock.sleeps == [60, 60, 60]
+
+
 def test_catalog_resumes_from_start_page(clock, fake_catalog):
     fetched = [page for page, _ in pages(clock, start_page=2)]
 

@@ -72,17 +72,51 @@ _UPSERT_GAMES = """
 UPSERT_SQL = {table: _UPSERT_GAMES.format(table=table) for table in ("games", "games_catalog")}
 
 
-def _upsert_games(table, games):
-    with connect() as conn, conn.cursor() as cur:
-        cur.executemany(UPSERT_SQL[table], games)
-    logger.info("upserted %d rows into %s", len(games), table)
-
-
 def load_games(games):
-    _upsert_games("games", games)
+    with connect() as conn, conn.cursor() as cur:
+        cur.executemany(UPSERT_SQL["games"], games)
+    logger.info("upserted %d rows into games", len(games))
 
 
-def load_catalog_page(games):
-    # one short transaction per page: a page is saved even if a later one
-    # fails, and no connection sits open through the hour-long run
-    _upsert_games("games_catalog", games)
+def start_or_resume_catalog_run():
+    """Return (run_id, next_page, resumed), resuming the latest run if it didn't finish."""
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT run_id, last_page FROM catalog_runs
+            WHERE finished_at IS NULL
+            ORDER BY run_id DESC
+            LIMIT 1;
+            """
+        )
+        unfinished = cur.fetchone()
+        if unfinished:
+            run_id, last_page = unfinished
+            return run_id, 0 if last_page is None else last_page + 1, True
+
+        cur.execute("INSERT INTO catalog_runs DEFAULT VALUES RETURNING run_id;")
+        return cur.fetchone()[0], 0, False
+
+
+def load_catalog_page(run_id, page, games):
+    # the page and its checkpoint commit together: a crash can't leave a
+    # page saved but unrecorded, or recorded but unsaved. One short
+    # transaction per page also means no connection stays open all run
+    with connect() as conn, conn.cursor() as cur:
+        cur.executemany(UPSERT_SQL["games_catalog"], games)
+        cur.execute(
+            """
+            UPDATE catalog_runs
+            SET last_page = %s, games_loaded = games_loaded + %s
+            WHERE run_id = %s;
+            """,
+            (page, len(games), run_id),
+        )
+    logger.info("upserted %d rows into games_catalog (run %d, page %d)", len(games), run_id, page)
+
+
+def finish_catalog_run(run_id):
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE catalog_runs SET finished_at = now() WHERE run_id = %s;", (run_id,)
+        )

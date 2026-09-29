@@ -22,20 +22,21 @@ def get_top100_2weeks():
     return raw_games
 
 
-def get_catalog_pages(start_page=0, interval=CATALOG_PAGE_INTERVAL,
+def get_catalog_pages(start_page=0, wait_first=False, interval=CATALOG_PAGE_INTERVAL,
                       clock=time.monotonic, sleep=time.sleep):
     """Yield (page, raw_games) for each page of the full catalogue, 1,000 games a page.
 
     A generator, so the caller can load each page before the next is fetched.
     The wait is measured from the previous request, so time the caller spends
-    loading a page counts towards it. clock and sleep are parameters so tests
-    don't have to wait a real minute.
+    loading a page counts towards it. wait_first also waits before the first
+    request, for resuming right after a run that crashed mid-request. clock
+    and sleep are parameters so tests don't have to wait a real minute.
     """
     # the shared session retries 5xx after 0s, 2s and 4s, which would break
     # the one-a-minute limit; a failed page raises instead
     session = get_session(retries=0)
     page = start_page
-    last_request = None
+    last_request = clock() if wait_first else None
     while True:
         if last_request is not None:
             wait = interval - (clock() - last_request)

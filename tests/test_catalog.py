@@ -2,46 +2,70 @@ import pytest
 
 import catalog
 
+PAGES = [(0, {"a": {}, "b": {}}), (1, {"c": {}}), (2, {"d": {}})]
+
 
 @pytest.fixture
-def loaded(monkeypatch):
-    """Serve two fake pages and record what gets loaded."""
-    pages = [(0, {"a": {}, "b": {}}), (1, {"c": {}})]
-    loaded = []
+def fake_pipeline(monkeypatch):
+    """Serve PAGES and record every call to the load functions, in order.
 
-    monkeypatch.setattr(
-        catalog.extract_steamspy, "get_catalog_pages", lambda start_page: iter(pages[start_page:])
-    )
+    Set calls.run to the (run_id, next_page, resumed) the run lookup returns,
+    and calls.fail_at to a page number to make fetching it fail.
+    """
+
+    class Calls(list):
+        run = (1, 0, False)
+        fail_at = None
+
+    calls = Calls()
+
+    def get_catalog_pages(start_page, wait_first):
+        calls.append(("fetch", start_page, wait_first))
+        for page, raw in PAGES[start_page:]:
+            if page == calls.fail_at:
+                raise RuntimeError(f"page {page} failed")
+            yield page, raw
+
+    monkeypatch.setattr(catalog.extract_steamspy, "get_catalog_pages", get_catalog_pages)
     monkeypatch.setattr(catalog.extract_steamspy, "parse_games", lambda raw: list(raw))
-    monkeypatch.setattr(catalog.load, "load_catalog_page", loaded.append)
-    return loaded
+    monkeypatch.setattr(catalog.load, "start_or_resume_catalog_run", lambda: calls.run)
+    monkeypatch.setattr(
+        catalog.load,
+        "load_catalog_page",
+        lambda run_id, page, games: calls.append(("load", run_id, page, games)),
+    )
+    monkeypatch.setattr(
+        catalog.load, "finish_catalog_run", lambda run_id: calls.append(("finish", run_id))
+    )
+    return calls
 
 
-def test_each_page_is_loaded_before_the_next(loaded):
+def test_new_run_loads_every_page_then_finishes(fake_pipeline):
     total = catalog.run()
 
-    assert loaded == [["a", "b"], ["c"]]
-    assert total == 3
+    assert fake_pipeline == [
+        ("fetch", 0, False),
+        ("load", 1, 0, ["a", "b"]),
+        ("load", 1, 1, ["c"]),
+        ("load", 1, 2, ["d"]),
+        ("finish", 1),
+    ]
+    assert total == 4
 
 
-def test_start_page_is_passed_through(loaded):
-    catalog.run(start_page=1)
+def test_resumed_run_continues_from_next_page_and_waits_first(fake_pipeline):
+    fake_pipeline.run = (9, 2, True)
 
-    assert loaded == [["c"]]
+    catalog.run()
+
+    assert fake_pipeline == [("fetch", 2, True), ("load", 9, 2, ["d"]), ("finish", 9)]
 
 
-def test_pages_before_a_failure_stay_loaded(monkeypatch):
-    loaded = []
-
-    def pages(start_page):
-        yield 0, {"a": {}}
-        raise RuntimeError("page 1 failed")
-
-    monkeypatch.setattr(catalog.extract_steamspy, "get_catalog_pages", pages)
-    monkeypatch.setattr(catalog.extract_steamspy, "parse_games", lambda raw: list(raw))
-    monkeypatch.setattr(catalog.load, "load_catalog_page", loaded.append)
+def test_failed_run_is_not_marked_finished(fake_pipeline):
+    fake_pipeline.fail_at = 1
 
     with pytest.raises(RuntimeError):
         catalog.run()
 
-    assert loaded == [["a"]]
+    # page 0 stays loaded and checkpointed; no finish, so the next run resumes
+    assert fake_pipeline == [("fetch", 0, False), ("load", 1, 0, ["a", "b"])]

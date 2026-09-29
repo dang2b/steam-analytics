@@ -46,3 +46,15 @@ CREATE TABLE IF NOT EXISTS games_catalog (
     concurrent_users          INTEGER,
     loaded_at                 TIMESTAMP DEFAULT now()
 );
+
+
+-- one row per catalogue load, so an interrupted load resumes where it
+-- stopped. Rows loaded since started_at of the latest finished run are the
+-- current catalogue
+CREATE TABLE IF NOT EXISTS catalog_runs (
+    run_id        SERIAL PRIMARY KEY,
+    started_at    TIMESTAMP NOT NULL DEFAULT now(),
+    finished_at   TIMESTAMP,
+    last_page     INTEGER,
+    games_loaded  INTEGER NOT NULL DEFAULT 0
+);
