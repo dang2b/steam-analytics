@@ -7,3 +7,4 @@ steam_analytics/logs/
 steam_analytics/dbt_packages/
 .ruff_cache/
 .pytest_cache/
+steam_analytics/.user.yml
