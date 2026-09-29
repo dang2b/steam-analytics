@@ -70,6 +70,27 @@ models:
       - name: loaded_at
         description: When the row was last written by the ingestion pipeline.
 
+  - name: stg_steamspy__catalog_runs
+    description: One row per catalogue load from catalog_runs, with run duration and list size.
+    columns:
+      - name: run_id
+        description: Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: is_finished
+        description: False while a run is in progress or after it failed (the next run resumes it).
+      - name: pages_loaded
+        description: Pages loaded so far, counting from page 0.
+      - name: list_size
+        description: >
+          Entries in SteamSpy's list for this run: full pages times 1,000 plus the last page.
+          Set when the run finishes; null for runs finished before it was recorded.
+      - name: games_upserted
+        description: Rows written, including games seen on more than one page.
+      - name: run_hours
+        description: Wall-clock duration from start to finish, including any gaps between resumed attempts.
+
   - name: stg_steamspy__games_history
     description: One row per game per load, from the games snapshot.
     columns:

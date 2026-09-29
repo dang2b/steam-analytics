@@ -91,3 +91,27 @@ models:
         description: Share of all catalogue games in this bucket, 0 to 1.
       - name: share_of_owners
         description: Share of all estimated owners in this bucket, 0 to 1.
+
+  - name: catalog_coverage
+    description: >
+      One row for the latest finished catalogue run, measuring how much of SteamSpy's list it
+      saw. SteamSpy orders games by an owners estimate that shifts during the day, so games
+      move between pages during a run: some are seen twice, others missed. The missed ones are
+      mostly games gaining owners, so low coverage biases the catalogue against rising games.
+    columns:
+      - name: run_id
+        data_tests:
+          - unique
+          - not_null
+      - name: run_hours
+        description: Wall-clock duration of the run. Longer runs give games more time to move.
+      - name: list_size
+        description: Entries in SteamSpy's list.
+      - name: distinct_games
+        description: Games in the current catalogue.
+      - name: duplicate_rows
+        description: Upserts of games already seen earlier in the run.
+      - name: games_missed_estimate
+        description: list_size minus distinct_games. Each duplicate took the place of a game that was never seen.
+      - name: coverage
+        description: distinct_games / list_size, 0 to 1. Null for runs without a list_size.
