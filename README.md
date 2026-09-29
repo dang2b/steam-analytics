@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/dang2b/steam-analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/dang2b/steam-analytics/actions/workflows/ci.yml)
 
-An end-to-end batch data pipeline that pulls Steam game data from two public APIs, loads it into Postgres, models it with dbt and serves it in a Metabase dashboard. A daily job tracks the top 100 games, and a weekly, resumable job loads the full catalogue of about 90,000 games through a rate-limited, paginated endpoint. The whole stack runs locally with Docker, and the dashboard itself is defined as code.
+An end-to-end batch data pipeline that pulls Steam game data from two public APIs, loads it into Postgres, models it with dbt and serves it in a Metabase dashboard. A daily job tracks the top 100 games, and a weekly, resumable job loads the full catalogue of about 82,000 games through a rate-limited, paginated endpoint. The whole stack runs locally with Docker, and the dashboard itself is defined as code.
 
 ![Steam Top 100 Overview dashboard](docs/images/dashboard.png)
 
@@ -73,7 +73,7 @@ This installs two systemd user timers:
 | `steam-pipeline` | daily, 09:00 | [`run_pipeline.sh`](scripts/run_pipeline.sh) | top 100 and friends load, then `dbt build` |
 | `steam-catalog` | Sundays, 10:00 | [`run_catalog.sh`](scripts/run_catalog.sh) | full catalogue load, about 1.5 hours |
 
-Both start Postgres if it's down. If the machine was off at the scheduled time, the run happens at the next boot. The catalogue job retries twice, 15 minutes apart, and each retry resumes from the next page. If a job fails for good, you get a desktop notification (via `notify-send`). Useful commands:
+Both start Postgres if it's down. If the machine was off at the scheduled time, the run happens at the next boot. The catalogue job blocks automatic sleep while it runs, retries twice, 15 minutes apart, and each retry resumes from the next page. If a job fails for good, you get a desktop notification (via `notify-send`). Useful commands:
 
 ```bash
 systemctl --user list-timers 'steam-*'               # next scheduled runs
