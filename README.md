@@ -70,10 +70,10 @@ This installs two systemd user timers:
 
 | Timer | When | Runs | What it does |
 |---|---|---|---|
-| `steam-pipeline` | daily, 09:00 | [`run_pipeline.sh`](scripts/run_pipeline.sh) | top 100 and friends load, then `dbt build` |
+| `steam-pipeline` | daily, 09:00 | [`run_pipeline.sh`](scripts/run_pipeline.sh) | top 100 and friends load, `dbt build`, backup, source freshness, warning report |
 | `steam-catalog` | Sundays, 10:00 | [`run_catalog.sh`](scripts/run_catalog.sh) | full catalogue load, about 1.5 hours |
 
-Both start Postgres if it's down. If the machine was off at the scheduled time, the run happens at the next boot. The catalogue job blocks automatic sleep while it runs, retries twice, 15 minutes apart, and each retry resumes from the next page. If a job fails for good, you get a desktop notification (via `notify-send`). Useful commands:
+Both start Postgres if it's down. If the machine was off at the scheduled time, the run happens at the next boot. The catalogue job blocks automatic sleep while it runs, retries twice, 15 minutes apart, and each retry resumes from the next page. If a job fails for good, you get a critical desktop notification (via `notify-send`). dbt warnings (low catalogue coverage, stale SteamSpy stats, a source that hasn't loaded for a day) don't fail the job, so [`dbt_warnings.py`](dbt_warnings.py) reads dbt's result files after each daily run and sends a normal notification listing them. Useful commands:
 
 ```bash
 systemctl --user list-timers 'steam-*'               # next scheduled runs
@@ -144,7 +144,7 @@ Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse co
 ## Data quality
 
 - **dbt tests** on every model: primary keys are `unique` and `not_null`, labels use `accepted_values`, and custom tests check that parsed owners ranges are valid, that `game_rankings` never exceeds 100 games, that `game_daily_stats` has one row per game per day, that the latest catalogue run loaded at least 10,000 games (so pagination didn't stop early) and that the catalogue shares add up to 1. A warning-level test flags a catalogue run that saw less than 90% of SteamSpy's list, and another flags when most of the top 100 has had unchanged stats for more than 3 days. A dbt unit test checks the streak logic in `game_freshness` on hand-made rows (a value that comes back, a skipped day, a game that left the top 100).
-- **Source freshness**: `dbt source freshness` warns after 1 day and errors after 7 without a new daily load, and after 8 and 15 days for the weekly catalogue.
+- **Source freshness**: the daily job runs `dbt source freshness`, which warns after 1 day and errors after 7 without a new daily load, and after 8 and 15 days for the weekly catalogue. Errors fail the job; warnings are reported by notification.
 - **Unit tests** (pytest) for API parsing, retry configuration, key redaction, connection handling, catalogue throttling, pagination and resume, using recorded API fixtures and a fake clock, so no test waits a real minute.
 - **CI** (GitHub Actions) on every pull request: ruff lint, the unit tests, then a full `dbt build` against a fresh Postgres service loaded with the fixtures. CI never calls the live APIs, so it needs no secrets and can't fail because an external API is down.
 
@@ -182,6 +182,7 @@ Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse co
 ├── extract_friends.py       # Steam Web API friends + profiles fetch + parse
 ├── http_client.py           # shared requests session: retries, backoff, timeout
 ├── load.py                  # Postgres upserts and catalogue checkpoints
+├── dbt_warnings.py          # reports dbt warnings after the daily run
 ├── config.py                # settings from .env
 ├── schema.sql               # raw tables, applied automatically on first start
 ├── setup_metabase.py        # dashboard as code
