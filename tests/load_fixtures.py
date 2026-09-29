@@ -21,6 +21,12 @@ def main():
     load.load_games(parse_games(games))
     load.load_friends(parse_player_summaries(players))
 
+    # the same games as a one-page catalogue run, finished so staging
+    # treats them as the current catalogue
+    run_id, _, _ = load.start_or_resume_catalog_run()
+    load.load_catalog_page(run_id, 0, parse_games(games))
+    load.finish_catalog_run(run_id)
+
 
 if __name__ == "__main__":
     main()

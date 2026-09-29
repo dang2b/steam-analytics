@@ -10,13 +10,15 @@ logger = logging.getLogger("pipeline")
 
 
 def run():
-    ids = extract_friends.get_friend_ids()
-    players = extract_friends.get_friend_summaries(ids)
-    load.load_friends(players)
-
+    # games first: they feed the marts and the history snapshot, so a
+    # friends API problem (private list, expired key) shouldn't block them
     raw_games = extract_steamspy.get_top100_2weeks()
     games = extract_steamspy.parse_games(raw_games)
     load.load_games(games)
+
+    ids = extract_friends.get_friend_ids()
+    players = extract_friends.get_friend_summaries(ids)
+    load.load_friends(players)
 
 
 if __name__ == "__main__":

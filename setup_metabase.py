@@ -23,6 +23,12 @@ logger = logging.getLogger("setup_metabase")
 DATABASE_NAME = "Steam Pipeline"
 COLLECTION_NAME = "Steam Analytics"
 DASHBOARD_NAME = "Steam Top 100 Overview"
+MART_TABLES = {
+    "game_rankings",
+    "publisher_summary",
+    "game_daily_stats",
+    "catalog_owners_distribution",
+}
 
 # Metabase reaches Postgres over the compose network, so it uses the
 # service name, not localhost
@@ -38,7 +44,9 @@ SOURCE_DB = {
 }
 
 # each card: (name, display, sql, visualization_settings, (col, row, width, height))
-# the dashboard grid is 24 columns wide
+# the dashboard grid is 24 columns wide. Chart columns get quoted aliases
+# because Metabase uses a native query's column names as axis titles,
+# tooltips and table headers
 CARDS = [
     (
         "Players online (top 100)",
@@ -71,38 +79,40 @@ CARDS = [
         "Top 10 games by concurrent players",
         "row",
         """
-        select game_name, concurrent_users
+        select game_name as "Game", concurrent_users as "Concurrent players"
         from public_marts.game_rankings
         where ccu_rank <= 10
         order by ccu_rank
         """,
-        {"graph.dimensions": ["game_name"], "graph.metrics": ["concurrent_users"]},
+        {"graph.dimensions": ["Game"], "graph.metrics": ["Concurrent players"]},
         (0, 3, 12, 8),
     ),
     (
         "Top 10 publishers by concurrent players",
         "row",
         """
-        select publisher, total_concurrent_users
+        select publisher as "Publisher", total_concurrent_users as "Concurrent players"
         from public_marts.publisher_summary
         where ccu_rank <= 10
         order by ccu_rank
         """,
-        {"graph.dimensions": ["publisher"], "graph.metrics": ["total_concurrent_users"]},
+        {"graph.dimensions": ["Publisher"], "graph.metrics": ["Concurrent players"]},
         (12, 3, 12, 8),
     ),
     (
         "Average positive review % by price tier",
         "bar",
         """
-        select price_tier, round(100 * avg(positive_review_ratio), 1) as avg_positive_pct
+        select
+            price_tier as "Price tier",
+            round(100 * avg(positive_review_ratio), 1) as "Average positive reviews (%)"
         from public_marts.game_rankings
         group by price_tier
         order by min(price_usd)
         """,
         {
-            "graph.dimensions": ["price_tier"],
-            "graph.metrics": ["avg_positive_pct"],
+            "graph.dimensions": ["Price tier"],
+            "graph.metrics": ["Average positive reviews (%)"],
             "graph.show_values": True,
         },
         (0, 11, 12, 7),
@@ -111,11 +121,11 @@ CARDS = [
         "Games by price tier",
         "pie",
         """
-        select price_tier, count(*) as games
+        select price_tier as "Price tier", count(*) as "Games"
         from public_marts.game_rankings
         group by price_tier
         """,
-        {"pie.dimension": "price_tier", "pie.metric": "games"},
+        {"pie.dimension": "Price tier", "pie.metric": "Games"},
         (12, 11, 12, 7),
     ),
     (
@@ -123,11 +133,11 @@ CARDS = [
         "table",
         """
         select
-            review_score_rank as rank,
-            game_name,
-            round(100 * positive_review_ratio, 1) as positive_pct,
-            total_reviews,
-            price_tier
+            review_score_rank as "Rank",
+            game_name as "Game",
+            round(100 * positive_review_ratio, 1) as "Positive reviews (%)",
+            total_reviews as "Total reviews",
+            price_tier as "Price tier"
         from public_marts.game_rankings
         where review_score_rank <= 10
         order by review_score_rank
@@ -139,17 +149,48 @@ CARDS = [
         "Concurrent players over time: today's top 5",
         "line",
         """
-        select d.snapshot_date, d.game_name, d.concurrent_users
+        select
+            d.snapshot_date as "Date",
+            d.game_name as "Game",
+            d.concurrent_users as "Concurrent players"
         from public_marts.game_daily_stats as d
         join public_marts.game_rankings as r on r.appid = d.appid
         where r.ccu_rank <= 5
         order by d.snapshot_date
         """,
         {
-            "graph.dimensions": ["snapshot_date", "game_name"],
-            "graph.metrics": ["concurrent_users"],
+            "graph.dimensions": ["Date", "Game"],
+            "graph.metrics": ["Concurrent players"],
         },
         (0, 26, 24, 8),
+    ),
+    (
+        "Top 100's share of estimated owners (full catalogue)",
+        "scalar",
+        """
+        select round(100 * sum(top100_owners_estimate) / nullif(sum(owners_estimate), 0), 1)
+            as top100_share
+        from public_marts.catalog_owners_distribution
+        """,
+        {"column_settings": {'["name","top100_share"]': {"suffix": "%"}}},
+        (0, 34, 8, 8),
+    ),
+    (
+        "Catalogue games vs. owners by owners range",
+        "bar",
+        """
+        select
+            owners_bucket as "Owners range",
+            round(100 * share_of_games, 1) as "Share of games (%)",
+            round(100 * share_of_owners, 1) as "Share of estimated owners (%)"
+        from public_marts.catalog_owners_distribution
+        order by owners_min
+        """,
+        {
+            "graph.dimensions": ["Owners range"],
+            "graph.metrics": ["Share of games (%)", "Share of estimated owners (%)"],
+        },
+        (8, 34, 16, 8),
     ),
 ]
 
@@ -216,7 +257,7 @@ class Metabase:
         while time.monotonic() < deadline:
             tables = self.request("GET", f"database/{db_id}/metadata")["tables"]
             names = {t["name"] for t in tables}
-            if {"game_rankings", "publisher_summary"} <= names:
+            if names >= MART_TABLES:
                 return
             time.sleep(2)
         raise RuntimeError("mart tables not found in Metabase; did `dbt build` run?")
@@ -252,7 +293,8 @@ class Metabase:
             "collection_id": collection_id,
             "description": (
                 "Popularity, reviews and pricing across SteamSpy's top 100 games "
-                "of the last two weeks."
+                "of the last two weeks, and how ownership spreads across the full "
+                "catalogue."
             ),
         })
         dashcards = [

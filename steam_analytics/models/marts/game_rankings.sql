@@ -25,7 +25,10 @@ enriched as (
         discount_pct,
         is_free,
         discount_pct > 0 as is_discounted,
+        -- the loader stores a missing price as null; without this branch it
+        -- would fall through to the else and look like a $30+ game
         case
+            when price_usd is null then 'unknown'
             when is_free then 'free'
             when price_usd < 10 then 'under $10'
             when price_usd < 30 then '$10 to $30'
