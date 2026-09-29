@@ -22,6 +22,9 @@ select
     snapshot_date,
     game_name,
     concurrent_users,
+    positive_reviews,
+    negative_reviews,
+    positive_reviews + negative_reviews as total_reviews,
     round(
         positive_reviews::numeric / nullif(positive_reviews + negative_reviews, 0),
         4

@@ -63,6 +63,8 @@ models:
           - not_null
       - name: concurrent_users
         description: Peak concurrent users (CCU) the day before, per SteamSpy.
+      - name: total_reviews
+        description: Positive plus negative reviews. Changes daily for popular games, so it's the best sign that SteamSpy refreshed its data.
 
   - name: catalog_owners_distribution
     description: >
@@ -115,3 +117,53 @@ models:
         description: list_size minus distinct_games. Each duplicate took the place of a game that was never seen.
       - name: coverage
         description: distinct_games / list_size, 0 to 1. Null for runs without a list_size.
+
+  - name: game_freshness
+    description: >
+      One row per game that has been in the top 100, with how long its SteamSpy stats
+      (concurrent users and review count) have gone unchanged. SteamSpy doesn't refresh
+      every day, so this shows how old the numbers behind the rankings really are.
+    columns:
+      - name: appid
+        data_tests:
+          - unique
+          - not_null
+      - name: unchanged_since
+        description: First snapshot of the current streak, i.e. the last day the stats changed (or the first day seen).
+        data_tests:
+          - not_null
+      - name: last_snapshot_date
+        description: Last day the game was in the top 100.
+      - name: is_in_latest_snapshot
+        description: True when the game is in the most recent daily snapshot.
+      - name: snapshots_unchanged
+        description: Daily snapshots in the current streak.
+      - name: days_unchanged
+        description: Calendar days from unchanged_since to last_snapshot_date, counting both. More than snapshots_unchanged when the pipeline skipped a day.
+
+unit_tests:
+  - name: game_freshness_counts_only_the_current_streak
+    description: >
+      Game 1 goes A, B, A: grouping by value would merge the two A days, but only the last
+      day is the current streak. Game 2 keeps the same stats across a day the pipeline
+      skipped. Game 3 dropped out of the top 100. Game 4's reviews change while its
+      concurrent users don't, which still counts as a change.
+    model: game_freshness
+    given:
+      - input: ref('game_daily_stats')
+        rows:
+          - {appid: 1, game_name: a, snapshot_date: '2026-10-01', concurrent_users: 10, total_reviews: 5}
+          - {appid: 1, game_name: a, snapshot_date: '2026-10-02', concurrent_users: 20, total_reviews: 5}
+          - {appid: 1, game_name: a, snapshot_date: '2026-10-03', concurrent_users: 10, total_reviews: 5}
+          - {appid: 2, game_name: b, snapshot_date: '2026-10-01', concurrent_users: 30, total_reviews: 7}
+          - {appid: 2, game_name: b, snapshot_date: '2026-10-03', concurrent_users: 30, total_reviews: 7}
+          - {appid: 3, game_name: c, snapshot_date: '2026-10-01', concurrent_users: 40, total_reviews: 9}
+          - {appid: 3, game_name: c, snapshot_date: '2026-10-02', concurrent_users: 40, total_reviews: 9}
+          - {appid: 4, game_name: d, snapshot_date: '2026-10-02', concurrent_users: 50, total_reviews: 11}
+          - {appid: 4, game_name: d, snapshot_date: '2026-10-03', concurrent_users: 50, total_reviews: 12}
+    expect:
+      rows:
+        - {appid: 1, unchanged_since: '2026-10-03', last_snapshot_date: '2026-10-03', is_in_latest_snapshot: true, snapshots_unchanged: 1, days_unchanged: 1}
+        - {appid: 2, unchanged_since: '2026-10-01', last_snapshot_date: '2026-10-03', is_in_latest_snapshot: true, snapshots_unchanged: 2, days_unchanged: 3}
+        - {appid: 3, unchanged_since: '2026-10-01', last_snapshot_date: '2026-10-02', is_in_latest_snapshot: false, snapshots_unchanged: 2, days_unchanged: 2}
+        - {appid: 4, unchanged_since: '2026-10-03', last_snapshot_date: '2026-10-03', is_in_latest_snapshot: true, snapshots_unchanged: 1, days_unchanged: 1}
