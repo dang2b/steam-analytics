@@ -157,7 +157,7 @@ CARDS = [
         order by review_score_rank
         """,
         {},
-        (0, 18, 24, 8),
+        (0, 18, 24, 9),
     ),
     (
         "Concurrent players over time: today's top 5",
@@ -176,7 +176,7 @@ CARDS = [
             "graph.dimensions": ["Date", "Game"],
             "graph.metrics": ["Concurrent players"],
         },
-        (0, 26, 24, 8),
+        (0, 27, 24, 8),
     ),
     (
         "Top 100's share of estimated owners (full catalogue)",
@@ -187,7 +187,7 @@ CARDS = [
         from public_marts.catalog_owners_distribution
         """,
         {"column_settings": {'["name","top100_share"]': {"suffix": "%"}}},
-        (0, 34, 8, 8),
+        (0, 35, 8, 8),
     ),
     (
         "Catalogue games vs. owners by owners range",
@@ -204,7 +204,7 @@ CARDS = [
             "graph.dimensions": ["Owners range"],
             "graph.metrics": ["Share of games (%)", "Share of estimated owners (%)"],
         },
-        (8, 34, 16, 8),
+        (8, 35, 16, 8),
     ),
 ]
 
