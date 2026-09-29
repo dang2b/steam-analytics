@@ -82,6 +82,28 @@ systemctl --user start steam-catalog.service         # run now (add --no-block f
 systemctl --user disable --now steam-pipeline.timer steam-catalog.timer  # uninstall
 ```
 
+### Backups
+
+The daily job ends with [`scripts/backup_db.sh`](scripts/backup_db.sh), which dumps the raw tables and the history snapshot, the only data that can't be rebuilt, since the APIs don't serve past numbers. Staging and marts are left out because `dbt build` recreates them. Dumps go to `~/steam-pipeline-backups` (set `BACKUP_DIR` in `.env` to change it) and the newest 14 are kept (`BACKUP_KEEP`). Each dump is checked with `pg_restore --list` before it counts.
+
+```bash
+scripts/backup_db.sh                                   # back up now
+scripts/restore_db.sh ~/steam-pipeline-backups/<file>  # restore, then rebuild the models
+```
+
+The backups sit on the same disk as the database, so they survive `docker compose down -v` or a broken container, not a dead disk. Point `BACKUP_DIR` at an external drive or a synced folder for that.
+
+### Platform support
+
+| Part | Linux | macOS | Windows |
+|---|---|---|---|
+| Pipeline, dbt, dashboard, backup and restore scripts | yes | yes | through WSL 2 |
+| Scheduling (`install_schedule.sh`) | yes (systemd) | no, would need launchd | through WSL 2 with systemd enabled |
+| Sleep lock during the catalogue load | `systemd-inhibit` | `caffeinate` | not applied |
+| Failure notifications | `notify-send` | no | no |
+
+Only Linux has been tested end to end.
+
 ## Data model
 
 ```mermaid
@@ -163,7 +185,7 @@ Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse co
 ├── config.py                # settings from .env
 ├── schema.sql               # raw tables, applied automatically on first start
 ├── setup_metabase.py        # dashboard as code
-├── scripts/                 # daily and weekly jobs + systemd timer installer
+├── scripts/                 # daily and weekly jobs, backup and restore, systemd timer installer
 ├── steam_analytics/         # dbt project: sources, snapshots, macros, staging, marts, tests
 ├── tests/                   # pytest unit tests + API fixtures
 ├── docker-compose.yml       # Postgres + Metabase

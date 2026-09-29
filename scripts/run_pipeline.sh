@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Daily job: make sure Postgres is up, load fresh data, rebuild dbt models.
+# Daily job: make sure Postgres is up, load fresh data, rebuild dbt models,
+# back up the raw tables and history.
 # Run by the systemd timer from install_schedule.sh, or by hand.
 set -euo pipefail
 
@@ -18,7 +19,9 @@ scripts/start_db.sh
 status=0
 .venv/bin/python main.py || status=$?
 
-cd steam_analytics
-../.venv/bin/dbt build
+(cd steam_analytics && ../.venv/bin/dbt build)
+
+# after the build, so the backup includes today's snapshot
+scripts/backup_db.sh
 
 exit "$status"
