@@ -4,7 +4,7 @@
 
 An end-to-end batch data pipeline that pulls Steam game data from two public APIs, loads it into Postgres, models it with dbt and serves it in a Metabase dashboard. A daily job tracks the top 100 games, and a weekly, resumable job loads the full catalogue of about 82,000 games through a rate-limited, paginated endpoint. The whole stack runs locally with Docker, and the dashboard itself is defined as code.
 
-![Steam Top 100 Overview dashboard](docs/images/dashboard.png)
+![Steam Top 100 Overview dashboard, scrolling in dark mode then light mode](docs/images/dashboard.gif)
 
 ## Architecture
 
@@ -128,7 +128,7 @@ flowchart LR
 | Layer | Schema | Materialization | Purpose |
 |---|---|---|---|
 | Raw | `public` | tables | API data as it arrived, one row per game or friend, plus `catalog_runs` tracking each catalogue load |
-| Snapshots | `public_snapshots` | dbt snapshot | Every version of every raw game row, one per daily load |
+| Snapshots | `public_snapshots` | dbt snapshots | Every version of every top 100 game row, one per daily load, and every change in each player's playtime per game |
 | Staging | `public_staging` | views | Renames, type casts, parsing (owners buckets into numbers, cents into dollars), shared by both SteamSpy tables through one macro |
 | Marts | `public_marts` | tables | Business-facing tables the dashboard reads: rankings, price tiers, publisher totals |
 
@@ -160,7 +160,7 @@ Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse co
 - **Upserts never delete.** Loads use `INSERT ... ON CONFLICT DO UPDATE`, so re-running is safe. The downside is that games that dropped out of the top 100, and friends removed since the last run, stay in the raw tables. Every upsert refreshes `loaded_at`, so staging flags rows missing from the latest load (`is_in_latest_top100`, `is_current_friend`), and the marts only use current rows. A dbt test fails if `game_rankings` ever holds more than 100 games.
 - **History from a snapshot of the raw source.** The APIs only return today's numbers, so history has to be captured as it happens. A dbt snapshot of `raw.games` keeps every version of each game. It snapshots the raw table rather than a model, so the history survives changes to the staging logic, and unlike an incremental model, `dbt build --full-refresh` can't wipe it.
 - **Publishers are grouped as-is.** SteamSpy puts co-publishers in one comma-separated string, but names like `CAPCOM Co., Ltd.` contain commas too. Splitting on commas would break those names, so `publisher_summary` groups by the full string.
-- **Dashboards as code.** Metabase normally keeps dashboards only in its internal database. `setup_metabase.py` rebuilds the connection, cards and dashboard through the API, and applies Metabase settings (Metabot and AI features off), so they're version-controlled and reproducible. Light or dark mode is left to each user, under Account settings > Profile > Theme. Metabase only sees the `public_marts` schema, so every chart is built on tested, modeled data.
+- **Dashboards as code.** Metabase normally keeps dashboards only in its internal database. `setup_metabase.py` rebuilds the connection, cards and dashboard through the API, and applies Metabase settings (Metabot and AI features off), so they're version-controlled and reproducible. Light or dark mode is left to each user, under Account settings > Profile > Theme. The GIF above is recorded by [`scripts/capture_dashboard.py`](scripts/capture_dashboard.py) (needs Playwright, Chrome, ffmpeg and ImageMagick), so it can be retaken with one command. Metabase only sees the `public_marts` schema, so every chart is built on tested, modeled data.
 - **Explicit connection handling.** psycopg2's `with conn:` commits or rolls back but doesn't close the connection. `load.connect()` closes it explicitly, so a long-running scheduler wouldn't leak connections.
 
 ## Limitations and next steps
