@@ -59,19 +59,26 @@ pytest                                 # unit tests, no database or API calls
 ruff check .                           # lint, same rules as CI
 ```
 
-### Daily schedule (Linux)
+### Schedule (Linux)
 
 ```bash
 scripts/install_schedule.sh
 ```
 
-This installs a systemd user timer that runs [`scripts/run_pipeline.sh`](scripts/run_pipeline.sh) every day at 09:00. That script starts Postgres if it's down, loads fresh data and runs `dbt build`. If the machine was off at 09:00, the run happens at the next boot. If a run fails, you get a desktop notification (via `notify-send`). Useful commands:
+This installs two systemd user timers:
+
+| Timer | When | Runs | What it does |
+|---|---|---|---|
+| `steam-pipeline` | daily, 09:00 | [`run_pipeline.sh`](scripts/run_pipeline.sh) | top 100 and friends load, then `dbt build` |
+| `steam-catalog` | Sundays, 10:00 | [`run_catalog.sh`](scripts/run_catalog.sh) | full catalogue load, about 1.5 hours |
+
+Both start Postgres if it's down. If the machine was off at the scheduled time, the run happens at the next boot. The catalogue job retries twice, 15 minutes apart, and each retry resumes from the next page. If a job fails for good, you get a desktop notification (via `notify-send`). Useful commands:
 
 ```bash
-systemctl --user list-timers steam-pipeline.timer    # next scheduled run
-journalctl --user -u steam-pipeline.service          # logs from past runs
-systemctl --user start steam-pipeline.service        # run now
-systemctl --user disable --now steam-pipeline.timer  # uninstall
+systemctl --user list-timers 'steam-*'               # next scheduled runs
+journalctl --user -u steam-catalog.service           # logs from past runs
+systemctl --user start steam-catalog.service         # run now (add --no-block for the catalogue)
+systemctl --user disable --now steam-pipeline.timer steam-catalog.timer  # uninstall
 ```
 
 ## Data model
