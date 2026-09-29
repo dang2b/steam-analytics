@@ -27,16 +27,72 @@ def load_friends(players):
     with connect() as conn, conn.cursor() as cur:
         cur.executemany(
             """
-            INSERT INTO friends (steamid, personaname, profileurl, personastate)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO friends (steamid, personaname, profileurl, personastate, is_self)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (steamid) DO UPDATE SET
                 personaname  = EXCLUDED.personaname,
+                profileurl   = EXCLUDED.profileurl,
                 personastate = EXCLUDED.personastate,
+                is_self      = EXCLUDED.is_self,
                 loaded_at    = now();
             """,
             players,
         )
     logger.info("upserted %d rows into friends", len(players))
+
+
+def load_player_games(statuses, owned_rows, recent_rows):
+    # one transaction, so every row of this load shares one loaded_at and
+    # staging can flag games that left a library or the recent list the same
+    # way it flags top 100 dropouts
+    with connect() as conn, conn.cursor() as cur:
+        cur.executemany(
+            """
+            INSERT INTO player_library_status (
+                steamid, owned_visible, owned_game_count, recent_visible, recent_game_count
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (steamid) DO UPDATE SET
+                owned_visible     = EXCLUDED.owned_visible,
+                owned_game_count  = EXCLUDED.owned_game_count,
+                recent_visible    = EXCLUDED.recent_visible,
+                recent_game_count = EXCLUDED.recent_game_count,
+                loaded_at         = now();
+            """,
+            statuses,
+        )
+        cur.executemany(
+            """
+            INSERT INTO player_owned_games (
+                steamid, appid, name, playtime_forever, rtime_last_played
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (steamid, appid) DO UPDATE SET
+                name              = EXCLUDED.name,
+                playtime_forever  = EXCLUDED.playtime_forever,
+                rtime_last_played = EXCLUDED.rtime_last_played,
+                loaded_at         = now();
+            """,
+            owned_rows,
+        )
+        cur.executemany(
+            """
+            INSERT INTO player_recent_games (
+                steamid, appid, name, playtime_2weeks, playtime_forever
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (steamid, appid) DO UPDATE SET
+                name             = EXCLUDED.name,
+                playtime_2weeks  = EXCLUDED.playtime_2weeks,
+                playtime_forever = EXCLUDED.playtime_forever,
+                loaded_at        = now();
+            """,
+            recent_rows,
+        )
+    logger.info(
+        "upserted %d owned and %d recent games for %d players",
+        len(owned_rows), len(recent_rows), len(statuses),
+    )
 
 
 # games and games_catalog share columns, so they share one upsert. The table

@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 import load
-from extract_friends import parse_player_summaries
+from extract_friends import get_player_games, parse_player_summaries
 from extract_steamspy import parse_games
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -17,9 +17,18 @@ FIXTURES = Path(__file__).parent / "fixtures"
 def main():
     games = json.loads((FIXTURES / "steamspy_top100_sample.json").read_text())
     players = json.loads((FIXTURES / "player_summaries_sample.json").read_text())
+    player_games = json.loads((FIXTURES / "player_games_sample.json").read_text())
 
     load.load_games(parse_games(games))
-    load.load_friends(parse_player_summaries(players))
+    # the first fixture player stands in for the configured user
+    summaries = parse_player_summaries(players, self_id="76561190000000001")
+    load.load_friends(summaries)
+
+    load.load_player_games(*get_player_games(
+        [steamid for steamid, *_ in summaries],
+        fetch_owned=player_games["owned"].get,
+        fetch_recent=player_games["recent"].get,
+    ))
 
     # the same games as a one-page catalogue run, finished so staging
     # treats them as the current catalogue

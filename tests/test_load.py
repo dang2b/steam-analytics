@@ -114,3 +114,26 @@ def test_finish_marks_run_finished_with_list_size(fake_conn):
     _, sql, params = fake_conn.events[0]
     assert sql.startswith("UPDATE catalog_runs SET finished_at = now(), list_size = %s")
     assert params == (86544, 5)
+
+
+def test_friends_upsert_includes_is_self(fake_conn):
+    load.load_friends([("1", "me", "https://example.com", 0, True)])
+
+    _, sql, rows = fake_conn.events[0]
+    assert "is_self" in sql
+    assert rows == [("1", "me", "https://example.com", 0, True)]
+
+
+def test_player_games_load_in_one_transaction(fake_conn):
+    load.load_player_games(
+        statuses=[("1", True, 1, True, 1)],
+        owned_rows=[("1", 730, "Counter-Strike 2", 5423, 1790500000)],
+        recent_rows=[("1", 730, "Counter-Strike 2", 312, 5423)],
+    )
+
+    status, owned, recent, *after = fake_conn.events
+    assert status[1].startswith("INSERT INTO player_library_status")
+    assert owned[1].startswith("INSERT INTO player_owned_games")
+    assert recent[1].startswith("INSERT INTO player_recent_games")
+    # one commit for all three, so every row shares one loaded_at
+    assert after == ["commit", "close"]

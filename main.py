@@ -17,8 +17,13 @@ def run():
     load.load_games(games)
 
     ids = extract_friends.get_friend_ids()
-    players = extract_friends.get_friend_summaries(ids)
+    players = extract_friends.get_player_summaries(ids)
     load.load_friends(players)
+
+    # libraries and recent games for the user and every friend: two
+    # requests per player
+    steamids = [player[0] for player in players]
+    load.load_player_games(*extract_friends.get_player_games(steamids))
 
 
 if __name__ == "__main__":

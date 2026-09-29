@@ -18,3 +18,10 @@ def steamspy_sample():
 @pytest.fixture
 def player_summaries_sample():
     return read_fixture("player_summaries_sample.json")
+
+
+@pytest.fixture
+def player_games_sample():
+    """Player 1 has a public library, player 2 a private profile (empty
+    responses), player 3 a public library with no games and nothing recent."""
+    return read_fixture("player_games_sample.json")
