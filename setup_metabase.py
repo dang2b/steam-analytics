@@ -23,6 +23,12 @@ logger = logging.getLogger("setup_metabase")
 DATABASE_NAME = "Steam Pipeline"
 COLLECTION_NAME = "Steam Analytics"
 DASHBOARD_NAME = "Steam Top 100 Overview"
+MART_TABLES = {
+    "game_rankings",
+    "publisher_summary",
+    "game_daily_stats",
+    "catalog_owners_distribution",
+}
 
 # Metabase reaches Postgres over the compose network, so it uses the
 # service name, not localhost
@@ -158,6 +164,34 @@ CARDS = [
         },
         (0, 26, 24, 8),
     ),
+    (
+        "Top 100's share of estimated owners (full catalogue)",
+        "scalar",
+        """
+        select round(100 * sum(top100_owners_estimate) / nullif(sum(owners_estimate), 0), 1)
+            as top100_share
+        from public_marts.catalog_owners_distribution
+        """,
+        {"column_settings": {'["name","top100_share"]': {"suffix": "%"}}},
+        (0, 34, 8, 8),
+    ),
+    (
+        "Catalogue games vs. owners by owners range",
+        "bar",
+        """
+        select
+            owners_bucket as "Owners range",
+            round(100 * share_of_games, 1) as "Share of games (%)",
+            round(100 * share_of_owners, 1) as "Share of estimated owners (%)"
+        from public_marts.catalog_owners_distribution
+        order by owners_min
+        """,
+        {
+            "graph.dimensions": ["Owners range"],
+            "graph.metrics": ["Share of games (%)", "Share of estimated owners (%)"],
+        },
+        (8, 34, 16, 8),
+    ),
 ]
 
 
@@ -223,7 +257,7 @@ class Metabase:
         while time.monotonic() < deadline:
             tables = self.request("GET", f"database/{db_id}/metadata")["tables"]
             names = {t["name"] for t in tables}
-            if {"game_rankings", "publisher_summary"} <= names:
+            if names >= MART_TABLES:
                 return
             time.sleep(2)
         raise RuntimeError("mart tables not found in Metabase; did `dbt build` run?")
@@ -259,7 +293,8 @@ class Metabase:
             "collection_id": collection_id,
             "description": (
                 "Popularity, reviews and pricing across SteamSpy's top 100 games "
-                "of the last two weeks."
+                "of the last two weeks, and how ownership spreads across the full "
+                "catalogue."
             ),
         })
         dashcards = [
