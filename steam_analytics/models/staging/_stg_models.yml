@@ -91,6 +91,26 @@ models:
       - name: run_hours
         description: Wall-clock duration from start to finish, including any gaps between resumed attempts.
 
+  - name: stg_steam__player_playtime_history
+    description: >
+      One row per player per game per change in total playtime, from the player games
+      snapshot. The first version of each game is its playtime when tracking started.
+    columns:
+      - name: steam_id
+        data_tests:
+          - not_null
+      - name: appid
+        data_tests:
+          - not_null
+      - name: playtime_forever_minutes
+        description: Total playtime at that version, in minutes.
+      - name: observed_at
+        description: When the snapshot recorded this version.
+        data_tests:
+          - not_null
+      - name: is_latest_version
+        description: True for the current total.
+
   - name: stg_steamspy__games_history
     description: One row per game per load, from the games snapshot.
     columns:
