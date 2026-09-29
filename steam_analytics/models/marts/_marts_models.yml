@@ -14,11 +14,11 @@ models:
       - name: is_discounted
         description: True when the game currently has a discount.
       - name: price_tier
-        description: Current price bucket.
+        description: Current price bucket, 'unknown' when SteamSpy returned no price.
         data_tests:
           - accepted_values:
               arguments:
-                values: ['free', 'under $10', '$10 to $30', '$30 and up']
+                values: ['free', 'under $10', '$10 to $30', '$30 and up', 'unknown']
       - name: ccu_rank
         description: Rank by concurrent users, 1 = most played right now.
         data_tests:
