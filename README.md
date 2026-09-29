@@ -49,7 +49,15 @@ set -a; source .env; set +a     # dbt reads credentials from the environment
 python setup_metabase.py        # build the dashboard
 ```
 
-Then open http://localhost:3000 and log in with the `MB_ADMIN_*` credentials from `.env`. The dashboard is in the **Steam Analytics** collection.
+Then open http://localhost:3000 and log in with the `MB_ADMIN_*` credentials from `.env`. The dashboard is in the **Steam Analytics** collection. Postgres and Metabase only listen on localhost, so other machines on your network can't reach them.
+
+### Development
+
+```bash
+pip install -r requirements-dev.txt   # adds pytest and ruff
+pytest                                 # unit tests, no database or API calls
+ruff check .                           # lint, same rules as CI
+```
 
 ### Daily schedule (Linux)
 
@@ -57,7 +65,7 @@ Then open http://localhost:3000 and log in with the `MB_ADMIN_*` credentials fro
 scripts/install_schedule.sh
 ```
 
-This installs a systemd user timer that runs [`scripts/run_pipeline.sh`](scripts/run_pipeline.sh) every day at 09:00. That script starts Postgres if it's down, loads fresh data and runs `dbt build`. If the machine was off at 09:00, the run happens at the next boot. Useful commands:
+This installs a systemd user timer that runs [`scripts/run_pipeline.sh`](scripts/run_pipeline.sh) every day at 09:00. That script starts Postgres if it's down, loads fresh data and runs `dbt build`. If the machine was off at 09:00, the run happens at the next boot. If a run fails, you get a desktop notification (via `notify-send`). Useful commands:
 
 ```bash
 systemctl --user list-timers steam-pipeline.timer    # next scheduled run
