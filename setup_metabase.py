@@ -6,6 +6,7 @@ they're missing, and rebuilds every card and the dashboard from scratch.
 import logging
 import sys
 import time
+from urllib.parse import quote
 
 import requests
 
@@ -28,6 +29,19 @@ MART_TABLES = {
     "publisher_summary",
     "game_daily_stats",
     "catalog_owners_distribution",
+}
+
+# the color scheme isn't set here: it's a per-user choice under Account
+# settings > Profile > Theme (system default, dark or light), and setting it
+# on every run would overwrite that choice
+SETTINGS = {
+    # no AI provider is configured, and the dashboard doesn't need Metabot:
+    # turn off the assistant and the AI features. show-metabot (the home
+    # page character) and metabot-show-illustrations need paid features
+    # (whitelabel, ai-controls), so the open source edition can't change them
+    "metabot-enabled?": False,
+    "embedded-metabot-enabled?": False,
+    "ai-features-enabled?": False,
 }
 
 # Metabase reaches Postgres over the compose network, so it uses the
@@ -143,7 +157,7 @@ CARDS = [
         order by review_score_rank
         """,
         {},
-        (0, 18, 24, 8),
+        (0, 18, 24, 9),
     ),
     (
         "Concurrent players over time: today's top 5",
@@ -162,7 +176,7 @@ CARDS = [
             "graph.dimensions": ["Date", "Game"],
             "graph.metrics": ["Concurrent players"],
         },
-        (0, 26, 24, 8),
+        (0, 27, 24, 8),
     ),
     (
         "Top 100's share of estimated owners (full catalogue)",
@@ -173,7 +187,7 @@ CARDS = [
         from public_marts.catalog_owners_distribution
         """,
         {"column_settings": {'["name","top100_share"]': {"suffix": "%"}}},
-        (0, 34, 8, 8),
+        (0, 35, 8, 8),
     ),
     (
         "Catalogue games vs. owners by owners range",
@@ -190,7 +204,7 @@ CARDS = [
             "graph.dimensions": ["Owners range"],
             "graph.metrics": ["Share of games (%)", "Share of estimated owners (%)"],
         },
-        (8, 34, 16, 8),
+        (8, 35, 16, 8),
     ),
 ]
 
@@ -237,6 +251,12 @@ class Metabase:
                 "POST", "session", json={"username": email, "password": password}
             )
         self.session.headers["X-Metabase-Session"] = session["id"]
+
+    def apply_settings(self, settings):
+        for key, value in settings.items():
+            # many keys end in '?', which would otherwise start a query string
+            self.request("PUT", f"setting/{quote(key, safe='')}", json={"value": value})
+        logger.info("applied %d settings", len(settings))
 
     def get_or_create_database(self):
         for db in self.request("GET", "database")["data"]:
@@ -317,6 +337,8 @@ def main():
     mb = Metabase(MB_URL)
     mb.wait_until_healthy()
     mb.authenticate(MB_ADMIN_EMAIL, MB_ADMIN_PASSWORD)
+
+    mb.apply_settings(SETTINGS)
 
     db_id = mb.get_or_create_database()
     mb.sync(db_id)

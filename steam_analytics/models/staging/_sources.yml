@@ -14,6 +14,17 @@ sources:
         description: SteamSpy top 100 games by players in the last two weeks, one row per appid.
       - name: friends
         description: Steam Web API player summaries for the configured user's friends, one row per steamid.
+      - name: player_owned_games
+        description: >
+          Every game in the libraries of the configured user and their friends, from
+          GetOwnedGames, one row per player per game. Playtime in minutes.
+          rtime_last_played is only filled in for the user's own account.
+      - name: player_recent_games
+        description: Games each player played in the last two weeks, from GetRecentlyPlayedGames.
+      - name: player_library_status
+        description: >
+          Whether Steam returned each player's library and recent games. Private profiles
+          return empty responses, which must not be read as owning or playing nothing.
       - name: games_catalog
         description: >
           Full SteamSpy catalogue from the paginated `all` endpoint, one row per appid.

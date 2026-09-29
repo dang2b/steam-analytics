@@ -1,6 +1,7 @@
 import pytest
 
 import catalog
+from extract_steamspy import CATALOG_PAGE_SIZE
 
 PAGES = [(0, {"a": {}, "b": {}}), (1, {"c": {}}), (2, {"d": {}})]
 
@@ -35,7 +36,9 @@ def fake_pipeline(monkeypatch):
         lambda run_id, page, games: calls.append(("load", run_id, page, games)),
     )
     monkeypatch.setattr(
-        catalog.load, "finish_catalog_run", lambda run_id: calls.append(("finish", run_id))
+        catalog.load,
+        "finish_catalog_run",
+        lambda run_id, list_size: calls.append(("finish", run_id, list_size)),
     )
     return calls
 
@@ -48,7 +51,8 @@ def test_new_run_loads_every_page_then_finishes(fake_pipeline):
         ("load", 1, 0, ["a", "b"]),
         ("load", 1, 1, ["c"]),
         ("load", 1, 2, ["d"]),
-        ("finish", 1),
+        # two pages before the last one, which holds one game
+        ("finish", 1, 2 * CATALOG_PAGE_SIZE + 1),
     ]
     assert total == 4
 
@@ -58,7 +62,13 @@ def test_resumed_run_continues_from_next_page_and_waits_first(fake_pipeline):
 
     catalog.run()
 
-    assert fake_pipeline == [("fetch", 2, True), ("load", 9, 2, ["d"]), ("finish", 9)]
+    # the list size comes from the last page, even when earlier pages were
+    # loaded by a previous attempt
+    assert fake_pipeline == [
+        ("fetch", 2, True),
+        ("load", 9, 2, ["d"]),
+        ("finish", 9, 2 * CATALOG_PAGE_SIZE + 1),
+    ]
 
 
 def test_failed_run_is_not_marked_finished(fake_pipeline):

@@ -1,0 +1,29 @@
+{
+  "owned": {
+    "76561190000000001": {
+      "game_count": 2,
+      "games": [
+        {"appid": 730, "name": "Counter-Strike 2", "playtime_forever": 5423, "rtime_last_played": 1790500000,
+         "playtime_windows_forever": 5423, "playtime_mac_forever": 0, "playtime_linux_forever": 0,
+         "playtime_deck_forever": 0, "playtime_disconnected": 0, "img_icon_url": "", "has_community_visible_stats": true},
+        {"appid": 570, "name": "Dota 2", "playtime_forever": 0, "rtime_last_played": 0,
+         "playtime_windows_forever": 0, "playtime_mac_forever": 0, "playtime_linux_forever": 0,
+         "playtime_deck_forever": 0, "playtime_disconnected": 0, "img_icon_url": ""}
+      ]
+    },
+    "76561190000000002": {},
+    "76561190000000003": {"game_count": 0}
+  },
+  "recent": {
+    "76561190000000001": {
+      "total_count": 1,
+      "games": [
+        {"appid": 730, "name": "Counter-Strike 2", "playtime_2weeks": 312, "playtime_forever": 5423,
+         "playtime_windows_forever": 5423, "playtime_mac_forever": 0, "playtime_linux_forever": 0,
+         "playtime_deck_forever": 0, "img_icon_url": ""}
+      ]
+    },
+    "76561190000000002": {},
+    "76561190000000003": {"total_count": 0}
+  }
+}

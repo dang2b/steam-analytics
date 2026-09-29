@@ -4,7 +4,7 @@
 
 An end-to-end batch data pipeline that pulls Steam game data from two public APIs, loads it into Postgres, models it with dbt and serves it in a Metabase dashboard. A daily job tracks the top 100 games, and a weekly, resumable job loads the full catalogue of about 82,000 games through a rate-limited, paginated endpoint. The whole stack runs locally with Docker, and the dashboard itself is defined as code.
 
-![Steam Top 100 Overview dashboard](docs/images/dashboard.png)
+![Steam Top 100 Overview dashboard, scrolling in dark mode then light mode](docs/images/dashboard.gif)
 
 ## Architecture
 
@@ -70,10 +70,10 @@ This installs two systemd user timers:
 
 | Timer | When | Runs | What it does |
 |---|---|---|---|
-| `steam-pipeline` | daily, 09:00 | [`run_pipeline.sh`](scripts/run_pipeline.sh) | top 100 and friends load, then `dbt build` |
+| `steam-pipeline` | daily, 09:00 | [`run_pipeline.sh`](scripts/run_pipeline.sh) | top 100 and friends load, `dbt build`, backup, source freshness, warning report |
 | `steam-catalog` | Sundays, 10:00 | [`run_catalog.sh`](scripts/run_catalog.sh) | full catalogue load, about 1.5 hours |
 
-Both start Postgres if it's down. If the machine was off at the scheduled time, the run happens at the next boot. The catalogue job blocks automatic sleep while it runs, retries twice, 15 minutes apart, and each retry resumes from the next page. If a job fails for good, you get a desktop notification (via `notify-send`). Useful commands:
+Both start Postgres if it's down. If the machine was off at the scheduled time, the run happens at the next boot. The catalogue job blocks automatic sleep while it runs, retries twice, 15 minutes apart, and each retry resumes from the next page. If a job fails for good, you get a critical desktop notification (via `notify-send`). dbt warnings (low catalogue coverage, stale SteamSpy stats, a source that hasn't loaded for a day) don't fail the job, so [`dbt_warnings.py`](dbt_warnings.py) reads dbt's result files after each daily run and sends a normal notification listing them. Useful commands:
 
 ```bash
 systemctl --user list-timers 'steam-*'               # next scheduled runs
@@ -81,6 +81,28 @@ journalctl --user -u steam-catalog.service           # logs from past runs
 systemctl --user start steam-catalog.service         # run now (add --no-block for the catalogue)
 systemctl --user disable --now steam-pipeline.timer steam-catalog.timer  # uninstall
 ```
+
+### Backups
+
+The daily job ends with [`scripts/backup_db.sh`](scripts/backup_db.sh), which dumps the raw tables and the history snapshot, the only data that can't be rebuilt, since the APIs don't serve past numbers. Staging and marts are left out because `dbt build` recreates them. Dumps go to `~/steam-pipeline-backups` (set `BACKUP_DIR` in `.env` to change it) and the newest 14 are kept (`BACKUP_KEEP`). Each dump is checked with `pg_restore --list` before it counts.
+
+```bash
+scripts/backup_db.sh                                   # back up now
+scripts/restore_db.sh ~/steam-pipeline-backups/<file>  # restore, then rebuild the models
+```
+
+The backups sit on the same disk as the database, so they survive `docker compose down -v` or a broken container, not a dead disk. Point `BACKUP_DIR` at an external drive or a synced folder for that.
+
+### Platform support
+
+| Part | Linux | macOS | Windows |
+|---|---|---|---|
+| Pipeline, dbt, dashboard, backup and restore scripts | yes | yes | through WSL 2 |
+| Scheduling (`install_schedule.sh`) | yes (systemd) | no, would need launchd | through WSL 2 with systemd enabled |
+| Sleep lock during the catalogue load | `systemd-inhibit` | `caffeinate` | not applied |
+| Failure notifications | `notify-send` | no | no |
+
+Only Linux has been tested end to end.
 
 ## Data model
 
@@ -92,31 +114,37 @@ flowchart LR
     f[(raw.friends)] --> sf[stg_steam__friends]
     c[(raw.games_catalog)] --> sc[stg_steamspy__catalog]
     cr[(raw.catalog_runs)] --> sc
+    cr --> sr[stg_steamspy__catalog_runs]
     sg --> gr[game_rankings]
     sg --> ps[publisher_summary]
     sh --> ds[game_daily_stats]
+    ds --> gf[game_freshness]
     sc --> co[catalog_owners_distribution]
+    sc --> cc[catalog_coverage]
+    sr --> cc
     sg --> co
 ```
 
 | Layer | Schema | Materialization | Purpose |
 |---|---|---|---|
 | Raw | `public` | tables | API data as it arrived, one row per game or friend, plus `catalog_runs` tracking each catalogue load |
-| Snapshots | `public_snapshots` | dbt snapshot | Every version of every raw game row, one per daily load |
+| Snapshots | `public_snapshots` | dbt snapshots | Every version of every top 100 game row, one per daily load, and every change in each player's playtime per game |
 | Staging | `public_staging` | views | Renames, type casts, parsing (owners buckets into numbers, cents into dollars), shared by both SteamSpy tables through one macro |
 | Marts | `public_marts` | tables | Business-facing tables the dashboard reads: rankings, price tiers, publisher totals |
 
 - **`game_rankings`**: one row per game, with concurrent-player and review-score ranks, price tier, discount flag and an owners estimate.
 - **`publisher_summary`**: one row per publisher, with game count, total concurrent players and a review ratio weighted by review volume.
 - **`game_daily_stats`**: one row per game per day it was in the top 100, for trend charts.
+- **`game_freshness`**: one row per game, with how many consecutive snapshots and days its SteamSpy stats (concurrent users and review count) have gone unchanged, and the last day they changed.
 - **`catalog_owners_distribution`**: one row per owners range across the full catalogue, with each range's share of games and of estimated owners, and how much of it the top 100 holds.
+- **`catalog_coverage`**: one row for the latest finished catalogue run: list size, distinct games, duplicates, estimated missed games and coverage.
 
 Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse column descriptions and the full lineage graph.
 
 ## Data quality
 
-- **dbt tests** on every model: primary keys are `unique` and `not_null`, labels use `accepted_values`, and custom tests check that parsed owners ranges are valid, that `game_rankings` never exceeds 100 games, that `game_daily_stats` has one row per game per day, that the latest catalogue run loaded at least 10,000 games (so pagination didn't stop early) and that the catalogue shares add up to 1.
-- **Source freshness**: `dbt source freshness` warns after 1 day and errors after 7 without a new daily load, and after 8 and 15 days for the weekly catalogue.
+- **dbt tests** on every model: primary keys are `unique` and `not_null`, labels use `accepted_values`, and custom tests check that parsed owners ranges are valid, that `game_rankings` never exceeds 100 games, that `game_daily_stats` has one row per game per day, that the latest catalogue run loaded at least 10,000 games (so pagination didn't stop early) and that the catalogue shares add up to 1. A warning-level test flags a catalogue run that saw less than 90% of SteamSpy's list, and another flags when most of the top 100 has had unchanged stats for more than 3 days. A dbt unit test checks the streak logic in `game_freshness` on hand-made rows (a value that comes back, a skipped day, a game that left the top 100).
+- **Source freshness**: the daily job runs `dbt source freshness`, which warns after 1 day and errors after 7 without a new daily load, and after 8 and 15 days for the weekly catalogue. Errors fail the job; warnings are reported by notification.
 - **Unit tests** (pytest) for API parsing, retry configuration, key redaction, connection handling, catalogue throttling, pagination and resume, using recorded API fixtures and a fake clock, so no test waits a real minute.
 - **CI** (GitHub Actions) on every pull request: ruff lint, the unit tests, then a full `dbt build` against a fresh Postgres service loaded with the fixtures. CI never calls the live APIs, so it needs no secrets and can't fail because an external API is down.
 
@@ -132,14 +160,15 @@ Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse co
 - **Upserts never delete.** Loads use `INSERT ... ON CONFLICT DO UPDATE`, so re-running is safe. The downside is that games that dropped out of the top 100, and friends removed since the last run, stay in the raw tables. Every upsert refreshes `loaded_at`, so staging flags rows missing from the latest load (`is_in_latest_top100`, `is_current_friend`), and the marts only use current rows. A dbt test fails if `game_rankings` ever holds more than 100 games.
 - **History from a snapshot of the raw source.** The APIs only return today's numbers, so history has to be captured as it happens. A dbt snapshot of `raw.games` keeps every version of each game. It snapshots the raw table rather than a model, so the history survives changes to the staging logic, and unlike an incremental model, `dbt build --full-refresh` can't wipe it.
 - **Publishers are grouped as-is.** SteamSpy puts co-publishers in one comma-separated string, but names like `CAPCOM Co., Ltd.` contain commas too. Splitting on commas would break those names, so `publisher_summary` groups by the full string.
-- **Dashboards as code.** Metabase normally keeps dashboards only in its internal database. `setup_metabase.py` rebuilds the connection, cards and dashboard through the API, so they're version-controlled and reproducible. Metabase only sees the `public_marts` schema, so every chart is built on tested, modeled data.
+- **Dashboards as code.** Metabase normally keeps dashboards only in its internal database. `setup_metabase.py` rebuilds the connection, cards and dashboard through the API, and applies Metabase settings (Metabot and AI features off), so they're version-controlled and reproducible. Light or dark mode is left to each user, under Account settings > Profile > Theme. The GIF above is recorded by [`scripts/capture_dashboard.py`](scripts/capture_dashboard.py) (needs Playwright, Chrome, ffmpeg and ImageMagick), so it can be retaken with one command. Metabase only sees the `public_marts` schema, so every chart is built on tested, modeled data.
 - **Explicit connection handling.** psycopg2's `with conn:` commits or rolls back but doesn't close the connection. `load.connect()` closes it explicitly, so a long-running scheduler wouldn't leak connections.
 
 ## Limitations and next steps
 
 - **History starts on the first snapshot run.** The APIs don't serve past data, so trends only cover days the pipeline actually ran. Days the machine was off completely are gaps.
+- **SteamSpy doesn't refresh its stats every day.** Between the loads of September 28 and 29, all 100 games had identical concurrent users and review counts; only 5 prices changed. SteamSpy also still lists Counter-Strike 2 under its pre-2023 name. Until SteamSpy updates, the trend chart stays flat; `game_freshness` measures how often it actually does.
 - **SteamSpy numbers are estimates.** Owners are ranges, not counts, and playtime isn't available. Owner totals use range midpoints, which is rough for the widest ranges.
-- **The catalogue isn't an exact point in time.** A load takes about 1.5 hours, and if SteamSpy's ordering shifts during it, a game can land on two pages or be missed. Upserts make duplicates harmless; a missed game is picked up the next week. There's no catalogue history yet, only the latest load.
+- **The catalogue misses a few percent of games, and not at random.** SteamSpy orders the list by an owners estimate that shifts during the day, so during a load of an hour or more, games move between pages. A game moving to a later page is seen twice (harmless, it's an upsert); one moving to an earlier page is never seen. Repeating a request a minute apart returns the same page, so it's drift over time, not an unstable sort. The first load ran 3.8 hours because of interruptions and saw 82,518 of the list's 86,544 entries (95.4% coverage). All of the 4,026 losses came from the first 43 pages, where active games are; the long tail of small games didn't move. The missed games are mostly the ones gaining owners, so the catalogue slightly under-represents rising games. `catalog_coverage` tracks this for every run. There's no catalogue history yet, only the latest load.
 - **Friends data isn't used in the dashboard yet.** It's ingested and staged, ready for a future mart.
 - **Local-only setup.** Metabase stores its settings in an embedded H2 database, which is fine locally but should be Postgres in production. Orchestration (Airflow) and a cloud warehouse are out of scope for v1.
 
@@ -153,10 +182,11 @@ Run `dbt docs generate && dbt docs serve` inside `steam_analytics/` to browse co
 ├── extract_friends.py       # Steam Web API friends + profiles fetch + parse
 ├── http_client.py           # shared requests session: retries, backoff, timeout
 ├── load.py                  # Postgres upserts and catalogue checkpoints
+├── dbt_warnings.py          # reports dbt warnings after the daily run
 ├── config.py                # settings from .env
 ├── schema.sql               # raw tables, applied automatically on first start
 ├── setup_metabase.py        # dashboard as code
-├── scripts/                 # daily and weekly jobs + systemd timer installer
+├── scripts/                 # daily and weekly jobs, backup and restore, systemd timer installer
 ├── steam_analytics/         # dbt project: sources, snapshots, macros, staging, marts, tests
 ├── tests/                   # pytest unit tests + API fixtures
 ├── docker-compose.yml       # Postgres + Metabase

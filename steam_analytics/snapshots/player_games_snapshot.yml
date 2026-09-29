@@ -1,0 +1,16 @@
+snapshots:
+  - name: player_games_snapshot
+    description: >
+      History of every player's playtime per game, from raw.player_owned_games.
+      Steam only serves current totals, so hours played on a given day can only
+      be worked out from versions captured as they happen. The check strategy
+      stores a new version only when playtime_forever changes: a few dozen rows
+      a day for the games people actually played, instead of copying all ~2,600
+      library entries on every load. Snapshotting the raw source means
+      `dbt build --full-refresh` can't wipe it.
+    relation: source('raw', 'player_owned_games')
+    config:
+      schema: snapshots
+      unique_key: [steamid, appid]
+      strategy: check
+      check_cols: [playtime_forever]

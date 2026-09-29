@@ -23,6 +23,7 @@ def run():
         logger.info("starting catalogue run %d", run_id)
 
     total = 0
+    list_size = None
     # a resumed run waits first: the request that crashed the last attempt
     # still counts towards SteamSpy's one-a-minute limit
     pages = extract_steamspy.get_catalog_pages(start_page=start_page, wait_first=resumed)
@@ -30,9 +31,12 @@ def run():
         games = extract_steamspy.parse_games(raw_games)
         load.load_catalog_page(run_id, page, games)
         total += len(games)
+        # the last page decides it: every page before it held a full 1,000
+        list_size = page * extract_steamspy.CATALOG_PAGE_SIZE + len(games)
         logger.info("page %d loaded, %d games so far this attempt", page, total)
 
-    load.finish_catalog_run(run_id)
+    load.finish_catalog_run(run_id, list_size)
+    logger.info("catalogue list had %s entries", list_size)
     return total
 
 
