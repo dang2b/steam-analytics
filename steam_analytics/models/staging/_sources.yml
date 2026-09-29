@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: raw
-    description: Raw tables loaded by the Python ingestion pipeline (main.py).
+    description: Raw tables loaded by the Python ingestion pipeline (main.py and catalog.py).
     schema: public
     config:
       loaded_at_field: loaded_at
@@ -14,3 +14,21 @@ sources:
         description: SteamSpy top 100 games by players in the last two weeks, one row per appid.
       - name: friends
         description: Steam Web API player summaries for the configured user's friends, one row per steamid.
+      - name: games_catalog
+        description: >
+          Full SteamSpy catalogue from the paginated `all` endpoint, one row per appid.
+          Loaded weekly by catalog.py, one transaction per page of 1,000 games.
+        config:
+          # weekly load, with a week's slack for a missed run
+          freshness:
+            warn_after: {count: 8, period: day}
+            error_after: {count: 15, period: day}
+      - name: catalog_runs
+        description: >
+          One row per catalogue load, with the last page loaded. finished_at is null
+          while a run is in progress or after it failed; the next run resumes it.
+        config:
+          loaded_at_field: finished_at
+          freshness:
+            warn_after: {count: 8, period: day}
+            error_after: {count: 15, period: day}

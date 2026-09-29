@@ -42,6 +42,34 @@ models:
       - name: loaded_at
         description: When the row was last written by the ingestion pipeline.
 
+  - name: stg_steamspy__catalog
+    description: >
+      One row per game in the full SteamSpy catalogue, with the same cleaned columns as
+      stg_steamspy__games (both use the steamspy_game_columns macro).
+    columns:
+      - name: appid
+        description: Steam application ID. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: owners_min
+        description: Lower bound of the SteamSpy owners estimate.
+        data_tests:
+          - not_null
+      - name: owners_max
+        description: Upper bound of the SteamSpy owners estimate.
+        data_tests:
+          - not_null
+      - name: is_in_latest_catalog
+        description: >
+          True when the row was written during or after the latest finished catalogue run.
+          Pages commit separately, so this uses catalog_runs instead of max(loaded_at).
+          False for every row until the first run finishes.
+        data_tests:
+          - not_null
+      - name: loaded_at
+        description: When the row was last written by the ingestion pipeline.
+
   - name: stg_steamspy__games_history
     description: One row per game per load, from the games snapshot.
     columns:

@@ -72,9 +72,10 @@ jobs:
         env:
           PYTHONPATH: .
 
+      # the fixture catalogue is a handful of games, not tens of thousands
       - name: dbt build
         working-directory: steam_analytics
-        run: dbt build
+        run: dbt build --vars '{min_catalog_games: 1}'
 
       - name: dbt source freshness
         working-directory: steam_analytics

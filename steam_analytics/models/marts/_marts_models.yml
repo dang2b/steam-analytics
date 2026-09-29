@@ -63,3 +63,31 @@ models:
           - not_null
       - name: concurrent_users
         description: Peak concurrent users (CCU) the day before, per SteamSpy.
+
+  - name: catalog_owners_distribution
+    description: >
+      One row per SteamSpy owners bucket across the latest full catalogue, showing how
+      concentrated ownership is and how much of it the top 100 holds. Empty until the
+      first catalogue run finishes.
+    columns:
+      - name: owners_bucket
+        description: SteamSpy owners range, like '20,000 .. 50,000'. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: owners_min
+        description: Lower bound of the bucket, for sorting.
+        data_tests:
+          - not_null
+      - name: game_count
+        description: Games in the catalogue with this owners range.
+      - name: top100_game_count
+        description: How many of those are in the latest top 100.
+      - name: owners_estimate
+        description: Sum of owners range midpoints. A rough estimate, not a count.
+      - name: top100_owners_estimate
+        description: The same estimate for the bucket's top 100 games only.
+      - name: share_of_games
+        description: Share of all catalogue games in this bucket, 0 to 1.
+      - name: share_of_owners
+        description: Share of all estimated owners in this bucket, 0 to 1.
