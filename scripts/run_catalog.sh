@@ -7,4 +7,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 scripts/start_db.sh
-.venv/bin/python catalog.py
+
+# block automatic suspend while the load runs: on the first run, requests
+# timed out after the laptop woke up, and every failure costs a retry.
+# Closing the lid still suspends, because logind ignores inhibitors for it
+systemd-inhibit --what=sleep --who=steam-catalog \
+    --why="Full Steam catalogue load in progress" \
+    .venv/bin/python catalog.py
