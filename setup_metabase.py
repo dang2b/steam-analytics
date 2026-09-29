@@ -38,7 +38,9 @@ SOURCE_DB = {
 }
 
 # each card: (name, display, sql, visualization_settings, (col, row, width, height))
-# the dashboard grid is 24 columns wide
+# the dashboard grid is 24 columns wide. Chart columns get quoted aliases
+# because Metabase uses a native query's column names as axis titles,
+# tooltips and table headers
 CARDS = [
     (
         "Players online (top 100)",
@@ -71,38 +73,40 @@ CARDS = [
         "Top 10 games by concurrent players",
         "row",
         """
-        select game_name, concurrent_users
+        select game_name as "Game", concurrent_users as "Concurrent players"
         from public_marts.game_rankings
         where ccu_rank <= 10
         order by ccu_rank
         """,
-        {"graph.dimensions": ["game_name"], "graph.metrics": ["concurrent_users"]},
+        {"graph.dimensions": ["Game"], "graph.metrics": ["Concurrent players"]},
         (0, 3, 12, 8),
     ),
     (
         "Top 10 publishers by concurrent players",
         "row",
         """
-        select publisher, total_concurrent_users
+        select publisher as "Publisher", total_concurrent_users as "Concurrent players"
         from public_marts.publisher_summary
         where ccu_rank <= 10
         order by ccu_rank
         """,
-        {"graph.dimensions": ["publisher"], "graph.metrics": ["total_concurrent_users"]},
+        {"graph.dimensions": ["Publisher"], "graph.metrics": ["Concurrent players"]},
         (12, 3, 12, 8),
     ),
     (
         "Average positive review % by price tier",
         "bar",
         """
-        select price_tier, round(100 * avg(positive_review_ratio), 1) as avg_positive_pct
+        select
+            price_tier as "Price tier",
+            round(100 * avg(positive_review_ratio), 1) as "Average positive reviews (%)"
         from public_marts.game_rankings
         group by price_tier
         order by min(price_usd)
         """,
         {
-            "graph.dimensions": ["price_tier"],
-            "graph.metrics": ["avg_positive_pct"],
+            "graph.dimensions": ["Price tier"],
+            "graph.metrics": ["Average positive reviews (%)"],
             "graph.show_values": True,
         },
         (0, 11, 12, 7),
@@ -111,11 +115,11 @@ CARDS = [
         "Games by price tier",
         "pie",
         """
-        select price_tier, count(*) as games
+        select price_tier as "Price tier", count(*) as "Games"
         from public_marts.game_rankings
         group by price_tier
         """,
-        {"pie.dimension": "price_tier", "pie.metric": "games"},
+        {"pie.dimension": "Price tier", "pie.metric": "Games"},
         (12, 11, 12, 7),
     ),
     (
@@ -123,11 +127,11 @@ CARDS = [
         "table",
         """
         select
-            review_score_rank as rank,
-            game_name,
-            round(100 * positive_review_ratio, 1) as positive_pct,
-            total_reviews,
-            price_tier
+            review_score_rank as "Rank",
+            game_name as "Game",
+            round(100 * positive_review_ratio, 1) as "Positive reviews (%)",
+            total_reviews as "Total reviews",
+            price_tier as "Price tier"
         from public_marts.game_rankings
         where review_score_rank <= 10
         order by review_score_rank
@@ -139,15 +143,18 @@ CARDS = [
         "Concurrent players over time: today's top 5",
         "line",
         """
-        select d.snapshot_date, d.game_name, d.concurrent_users
+        select
+            d.snapshot_date as "Date",
+            d.game_name as "Game",
+            d.concurrent_users as "Concurrent players"
         from public_marts.game_daily_stats as d
         join public_marts.game_rankings as r on r.appid = d.appid
         where r.ccu_rank <= 5
         order by d.snapshot_date
         """,
         {
-            "graph.dimensions": ["snapshot_date", "game_name"],
-            "graph.metrics": ["concurrent_users"],
+            "graph.dimensions": ["Date", "Game"],
+            "graph.metrics": ["Concurrent players"],
         },
         (0, 26, 24, 8),
     ),
